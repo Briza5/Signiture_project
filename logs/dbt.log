@@ -1,0 +1,30 @@
+==================== 2025-11-15 17:03:15.279890 | 019a8878-952f-7ff2-9b23-b08c2d0c9de8 ====================
+Installing dbt project and profile setup
+17:03:15.305706 [info ]: Info Created .vscode/extensions.json with dbt extension recommendation
+17:03:15.314415 [info ]: Success Project created successfully!
+17:03:15.314816 [info ]: Info Project name: jaffle_shop
+17:03:15.317058 [info ]: Info Project directory: jaffle_shop
+17:03:15.317456 [info ]: Info Setting up your profile...
+17:03:15.318271 [info ]: Info Creating new profile...
+17:03:21.653722 [info ]: No dbt_cloud.yml found - proceeding without cloud pre-population
+17:10:30.881600 [info ]: Success Profile written to C:\Users\Briza\.dbt\profiles.yml
+17:10:30.882273 [info ]: Validating profile inputs, adapters, and connection
+
+dbt-fusion 2.0.0-preview.67
+   Loading ~/.dbt/profiles.yml
+ Debugging profile: dev
+ Debugging dbt version: 2.0.0-preview.67
+ Debugging platform: windows x86_64 (windows)
+ Debugging adapter type: bigquery (remote)
+ Debugging dependencies:
+  git: OK
+ Debugging connection:
+  "database": "dwhhbbi",
+  "schema": "signiture",
+  "method": "oauth",
+  "location": "europe-west3",
+  "dataproc_batch": null
+17:10:37.315154 [error]: dbt1011: [BigQuery] bigquery: constructing client: credentials: could not find default credentials. See https://cloud.google.com/docs/authentication/external/set-up-adc for more information
+17:10:37.576805 [info ]: 
+==================== Execution Summary =====================
+Finished 'init' with 1 error for target 'dev' [7m 22s]
