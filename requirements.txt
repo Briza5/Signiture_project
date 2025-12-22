@@ -1,0 +1,5 @@
+dlt
+dlt[bigquery]>=1.20.0
+pandas
+yfinance
+sqlalchemy>=2.0.0

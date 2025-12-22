@@ -1,0 +1,12 @@
+default:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      threads: 16
+      database: ABC123
+      schema: JAFFLE_SHOP
+      method: service-account
+      keyfile: /Users/mshaver/Downloads/CustomRoleDefinition.json
+      location: us-east1
+      dataproc_batch: null
