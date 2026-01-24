@@ -1,12 +1,12 @@
-default:
+stocks_transformation:
   target: dev
   outputs:
     dev:
       type: bigquery
       threads: 16
-      database: ABC123
-      schema: JAFFLE_SHOP
+      database: dwhhbbi
+      schema: stocks_dev
       method: service-account
-      keyfile: /Users/mshaver/Downloads/CustomRoleDefinition.json
-      location: us-east1
+      keyfile: D:/OneDrive/Data engineer/Projekty/Signiture_project/ingestion/credentials/dwhhbbi-21142b907feb.json
+      location: US
       dataproc_batch: null
