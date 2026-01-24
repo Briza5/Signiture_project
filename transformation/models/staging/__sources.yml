@@ -1,23 +1,44 @@
-version: 2
+version: 2                                                                                                                                                                                                                                                                                                                      
 
-# Try using these source definitions instead!
 sources:
-  - name: ecom
-    schema: "{{ target.schema }}_raw"
-    description: E-commerce data for the Jaffle Shop
+  - name: stocks_raw
     tables:
-      - name: raw_customers
-        description: One record per person who has purchased one or more items
-      - name: raw_orders
-        description: One record per order (consisting of one or more order items)
-        config:
-          loaded_at_field: ordered_at
-      - name: raw_items
-        description: Items included in an order
-      - name: raw_stores
-        config:
-          loaded_at_field: opened_at
-      - name: raw_products
-        description: One record per SKU for items sold in stores
-      - name: raw_supplies
-        description: One record per supply per SKU of items sold in stores
+      - name: company_metadata
+        description: Raw company metadata including symbol, company name, sector, industry, market cap, country, and timestamps.
+        columns:
+          - name: symbol
+          - name: company_name
+          - name: sector
+          - name: industry
+          - name: market_cap
+          - name: country
+          - name: updated_at
+          - name: _dlt_load_id
+          - name: _dlt_id
+
+      - name: daily_prices
+        description: Raw daily stock prices including date, open, high, low, close, volume, and symbol.
+        columns:
+          - name: date
+          - name: close
+          - name: high
+          - name: low
+          - name: open
+          - name: volume
+          - name: symbol
+          - name: _dlt_load_id
+          - name: _dlt_id
+
+      - name: pipeline_runs
+        description: Metadata about data pipeline runs including run ID, pipeline name, timestamps, status, and data date range.
+        columns:
+          - name: run_id
+          - name: pipeline_name
+          - name: symbol
+          - name: rows_loaded
+          - name: start_time
+          - name: end_time
+          - name: status
+          - name: data_date_range
+          - name: _dlt_load_id
+          - name: _dlt_id
