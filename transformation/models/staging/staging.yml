@@ -1,0 +1,92 @@
+models:
+  - name: stg_daily_prices
+    description: "Staging table for daily stock prices with cleaned and transformed data."
+    columns:
+      - name: price_date
+        description: "The date of the stock price."
+        data_tests:
+          - not_null
+      - name: open_price
+        description: "The opening price of the stock on the given date."
+        data_tests:
+          - not_null
+      - name: high_price
+        description: "The highest price of the stock on the given date."
+        data_tests:
+          - not_null
+      - name: low_price
+        description: "The lowest price of the stock on the given date."
+        data_tests:
+          - not_null
+      - name: close_price
+        description: "The closing price of the stock on the given date."
+        data_tests:
+          - not_null
+      - name: volume_traded
+        description: "The volume of stocks traded on the given date."
+        data_tests:
+          - not_null
+      - name: stock_symbol
+        description: "The stock symbol identifier."
+        data_tests:
+          - not_null
+      - name: dbt_loaded_at
+        description: "The timestamp when the data was loaded into dbt (Europe/Prague timezone)."
+  - name: stg_company_metadata
+    description: "Staging table for company metadata with cleaned and transformed data."
+    columns:
+      - name: company_symbol
+        description: "The stock symbol identifier."
+        data_tests:
+          - not_null
+          - unique
+      - name: company_name
+        description: "The name of the company."
+        data_tests:
+          - not_null
+      - name: company_sector
+        description: "The sector in which the company operates."
+      - name: company_industry
+        description: "The industry in which the company operates."
+      - name: company_market_cap
+        description: "The market capitalization of the company."
+      - name: company_country
+        description: "The country where the company is based."
+      - name: last_updated
+        description: "The timestamp when the record was last updated."
+      - name: dlt_load_id
+        description: "The dlt load ID tracking which pipeline load created this record."
+      - name: dlt_id
+        description: "The unique identifier assigned by dlt for this record."
+      - name: dbt_loaded_at
+        description: "The timestamp when the data was loaded into dbt (Europe/Prague timezone)."
+  - name: stg_pipeline_runs
+    description: "Staging table for pipeline run metadata with cleaned and transformed data."
+    columns:
+      - name: pipeline_run_id
+        description: "The unique identifier for the pipeline run."
+        data_tests:
+          - not_null
+          - unique
+      - name: pipeline_name
+        description: "The name of the data pipeline."
+        data_tests:
+          - not_null
+      - name: company_symbol
+        description: "The company symbol associated with the pipeline run."
+      - name: rows_loaded
+        description: "The number of rows loaded during the pipeline run."
+      - name: load_start_time
+        description: "The timestamp when the pipeline run started."
+      - name: load_end_time
+        description: "The timestamp when the pipeline run ended."
+      - name: run_status
+        description: "The status of the pipeline run (e.g., success, failure)."
+      - name: data_date_range
+        description: "The date range of the data processed in the pipeline run."
+      - name: dlt_load_id
+        description: "The dlt load ID tracking which pipeline load created this record."
+      - name: dlt_id
+        description: "The unique identifier assigned by dlt for this record."
+      - name: dbt_loaded_at
+        description: "The timestamp when the data was loaded into dbt (Europe/Prague timezone)."
