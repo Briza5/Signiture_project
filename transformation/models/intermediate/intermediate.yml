@@ -1,3 +1,5 @@
+version: 2
+
 models:
   - name: int_price_calculations
     description: "Daily price calculations including returns, ranges, and typical prices"
@@ -16,7 +18,8 @@ models:
         description: "Day-over-day return percentage ((close - prev_close) / prev_close * 100)"
         tests:
           - not_null:
-              where: "prev_close_price IS NOT NULL"
+              config:
+                where: "prev_close_price IS NOT NULL"
       
       - name: intraday_change_pct
         description: "Intraday movement percentage ((close - open) / open * 100)"
