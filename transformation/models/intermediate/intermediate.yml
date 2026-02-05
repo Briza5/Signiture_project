@@ -29,3 +29,79 @@ models:
       
       - name: typical_price
         description: "Average of high, low, and close prices"
+
+  - name: int_moving_averages
+    description: "Moving averages (20/50/200-day) with trend signals and crossover detection"
+    columns:
+      - name: price_date
+        description: "Trading date"
+        tests:
+          - not_null
+
+      - name: stock_symbol
+        description: "Stock ticker symbol"
+        tests:
+          - not_null
+
+      - name: close_price
+        description: "Closing price"
+        tests:
+          - not_null
+
+      - name: ma_20
+        description: "20-day simple moving average of close price"
+
+      - name: ma_50
+        description: "50-day simple moving average of close price"
+
+      - name: ma_200
+        description: "200-day simple moving average of close price"
+
+      - name: golden_cross
+        description: "Boolean flag: TRUE when MA20 crosses above MA50 (bullish signal)"
+
+      - name: death_cross
+        description: "Boolean flag: TRUE when MA20 crosses below MA50 (bearish signal)"
+
+      - name: trend_signal
+        description: "Overall trend indicator: strong_uptrend, uptrend, neutral, downtrend, strong_downtrend"
+
+  - name: int_volatility_metrics
+    description: "Rolling volatility metrics and annualized volatility calculations"
+    columns:
+      - name: price_date
+        description: "Trading date"
+        tests:
+          - not_null
+
+      - name: stock_symbol
+        description: "Stock ticker symbol"
+        tests:
+          - not_null
+
+      - name: close_price
+        description: "Closing price"
+
+      - name: daily_return_pct
+        description: "Day-over-day return percentage"
+
+      - name: volatility_20d
+        description: "20-day rolling standard deviation of daily returns (percentage points)"
+
+      - name: volatility_50d
+        description: "50-day rolling standard deviation of daily returns (percentage points)"
+
+      - name: annualized_volatility_20d
+        description: "Annualized volatility based on 20-day rolling std dev (volatility * sqrt(252))"
+
+      - name: annualized_volatility_50d
+        description: "Annualized volatility based on 50-day rolling std dev (volatility * sqrt(252))"
+
+      - name: volatility_regime
+        description: "Volatility classification: low (<1%), normal (1-2%), elevated (2-3%), high (>3%)"
+
+      - name: trading_days_20d
+        description: "Number of trading days in 20-day window (data quality indicator)"
+
+      - name: trading_days_50d
+        description: "Number of trading days in 50-day window (data quality indicator)"
