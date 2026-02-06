@@ -89,21 +89,25 @@ jobs:
           echo '${{ secrets.BIGQUERY_CREDENTIALS }}' > ingestion/credentials/dwhhbbi-credentials.json
 
       # -------------------------------------------------------------------------
-      # STEP 5: Configure dlt secrets.toml
+      # STEP 5: Configure dlt secrets + Set GOOGLE_APPLICATION_CREDENTIALS
       # -------------------------------------------------------------------------
       # Důvod: dlt čte credentials z .dlt/secrets.toml (není v git)
-      # Vytváříme secrets.toml dynamicky z GitHub Secrets
-      # EOF syntax: heredoc pro multi-line string bez escapování
+      # PROBLÉM: private_key obsahuje newlines (control chars) → TOML parse error
+      # ŘEŠENÍ: Použít Google Cloud standard environment variable
+      #         GOOGLE_APPLICATION_CREDENTIALS = path to JSON file
+      #         dlt BigQuery destination automaticky najde credentials z této env var
       - name: Configure dlt secrets
         run: |
           mkdir -p ingestion/.dlt
-          cat > ingestion/.dlt/secrets.toml << EOF
-          [destination.bigquery.credentials]
-          project_id = "${{ secrets.GCP_PROJECT_ID }}"
-          private_key = "${{ secrets.BIGQUERY_PRIVATE_KEY }}"
-          client_email = "${{ secrets.BIGQUERY_CLIENT_EMAIL }}"
-          location = "US"
-          EOF
+          # Minimální secrets.toml - pouze location
+          # Credentials najde dlt z GOOGLE_APPLICATION_CREDENTIALS env var
+          cat > ingestion/.dlt/secrets.toml << 'EOF'
+[destination.bigquery]
+location = "US"
+EOF
+          # Export GOOGLE_APPLICATION_CREDENTIALS pro následující steps
+          # Absolutní cesta k JSON credentials file vytvořenému v Step 4
+          echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/ingestion/credentials/dwhhbbi-credentials.json" >> $GITHUB_ENV
 
       # -------------------------------------------------------------------------
       # STEP 6: Run dlt pipeline (hlavní ingestion logika)
