@@ -101,10 +101,8 @@ jobs:
           mkdir -p ingestion/.dlt
           # Minimální secrets.toml - pouze location
           # Credentials najde dlt z GOOGLE_APPLICATION_CREDENTIALS env var
-          cat > ingestion/.dlt/secrets.toml << 'EOF'
-[destination.bigquery]
-location = "US"
-EOF
+          echo "[destination.bigquery]" > ingestion/.dlt/secrets.toml
+          echo 'location = "US"' >> ingestion/.dlt/secrets.toml
           # Export GOOGLE_APPLICATION_CREDENTIALS pro následující steps
           # Absolutní cesta k JSON credentials file vytvořenému v Step 4
           echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/ingestion/credentials/dwhhbbi-credentials.json" >> $GITHUB_ENV
