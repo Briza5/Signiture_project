@@ -82,8 +82,10 @@ jobs:
       # Důvod: dlt potřebuje service account JSON pro autentizaci k BigQuery
       # secrets.BIGQUERY_CREDENTIALS = JSON obsah service account key
       # Bezpečnost: Secrets jsou encrypted v GitHub, nikdy nejsou v logu vidět
+      # KRITICKÉ: mkdir -p MUSÍ být před vytvořením souboru!
       - name: Create BigQuery credentials file
         run: |
+          mkdir -p ingestion/credentials
           echo '${{ secrets.BIGQUERY_CREDENTIALS }}' > ingestion/credentials/dwhhbbi-credentials.json
 
       # -------------------------------------------------------------------------
@@ -124,6 +126,10 @@ jobs:
       # Důvod: Zachování logů pro debugging (viditelné v GitHub Actions UI)
       # if: always() - spustí se i když předchozí step failnul
       # retention-days: Logs se automaticky smažou po 30 dnech
+      # POZNÁMKA: logs/ složka je v .gitignore, takže není v repository
+      #           stock_pipeline.py vytváří logs/ složku automaticky (mkdir exist_ok=True)
+      #           Pokud pipeline failuje PŘED vytvořením logů, artifact bude prázdný
+      # if-no-files-found: warn - pouze warning místo error pokud logy neexistují
       - name: Upload pipeline logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -131,6 +137,7 @@ jobs:
           name: pipeline-logs
           path: logs/pipeline_run_*.log
           retention-days: 30
+          if-no-files-found: warn  # Jen warning pokud logy neexistují (ne error)
 
 # =============================================================================
 # JOB 2: TRANSFORMATION (dbt - transform raw data → analytics models)
