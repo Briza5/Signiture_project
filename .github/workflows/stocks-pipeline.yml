@@ -1,0 +1,293 @@
+# =============================================================================
+# GitHub Actions Workflow: Stock Market Data Pipeline
+# =============================================================================
+# Purpose: Automatizace daily stock data ingestion (dlt) a transformation (dbt)
+# Trigger: Každý všední den v 8:00 UTC + manuální spuštění
+# Architecture: Ingestion → Transformation → Notification (3 jobs v sérii)
+# =============================================================================
+
+name: Stock Market Data Pipeline
+
+# -----------------------------------------------------------------------------
+# WORKFLOW TRIGGERS (kdy se workflow spustí)
+# -----------------------------------------------------------------------------
+on:
+  # Cron schedule - automatické spouštění v pravidelných intervalech
+  schedule:
+    # Cron syntax: 'minute hour day-of-month month day-of-week'
+    # '0 8 * * 1-5' = každý všední den (Monday-Friday) v 8:00 AM UTC
+    # Důvod: Po uzavření US trhů (16:00 EST = 21:00 UTC), data dostupná následující den
+    - cron: '0 8 * * 1-5'
+
+  # Manual trigger - umožňuje spustit workflow ručně z GitHub UI
+  workflow_dispatch:
+    # Input parametry pro manuální spuštění
+    inputs:
+      full_refresh:
+        description: 'Run full refresh (drops state and reloads all data)'
+        required: false  # Parametr je volitelný
+        type: boolean    # Checkbox v UI
+        default: false   # Default = incremental load
+
+# -----------------------------------------------------------------------------
+# ENVIRONMENT VARIABLES (globální proměnné pro všechny jobs)
+# -----------------------------------------------------------------------------
+env:
+  PYTHON_VERSION: '3.11'  # Konzistentní Python verze pro všechny kroky
+  DBT_PROFILES_DIR: ./transformation  # Kde dbt hledá profiles.yml
+
+# =============================================================================
+# JOB 1: INGESTION (dlt pipeline - fetch data z yfinance → BigQuery)
+# =============================================================================
+jobs:
+  ingest-data:
+    name: Ingest Stock Data (dlt)
+
+    # Runner environment - GitHub-hosted Ubuntu VM (free tier: 2000 min/měsíc)
+    runs-on: ubuntu-latest
+
+    steps:
+      # -------------------------------------------------------------------------
+      # STEP 1: Checkout repository code
+      # -------------------------------------------------------------------------
+      # Důvod: Actions runner je prázdný VM, potřebujeme stáhnout náš kód
+      # uses: předpřipravená GitHub action (actions/checkout verze 4)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------------------------
+      # STEP 2: Setup Python environment
+      # -------------------------------------------------------------------------
+      # Důvod: Instalace Python a pip pro spouštění dlt pipeline
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}  # Použije proměnnou z env
+          # cache: 'pip' - cachuje pip dependencies pro rychlejší běhy
+          # GitHub automaticky cachuje ~/.cache/pip na základě requirements.txt hash
+          cache: 'pip'
+
+      # -------------------------------------------------------------------------
+      # STEP 3: Install Python dependencies
+      # -------------------------------------------------------------------------
+      # Důvod: Instalace dlt, yfinance, pandas a dalších závislostí
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip  # Nejnovější pip pro rychlejší instalaci
+          pip install -r requirements.txt  # Instalace všech project dependencies
+
+      # -------------------------------------------------------------------------
+      # STEP 4: Create BigQuery credentials file
+      # -------------------------------------------------------------------------
+      # Důvod: dlt potřebuje service account JSON pro autentizaci k BigQuery
+      # secrets.BIGQUERY_CREDENTIALS = JSON obsah service account key
+      # Bezpečnost: Secrets jsou encrypted v GitHub, nikdy nejsou v logu vidět
+      - name: Create BigQuery credentials file
+        run: |
+          echo '${{ secrets.BIGQUERY_CREDENTIALS }}' > ingestion/credentials/dwhhbbi-credentials.json
+
+      # -------------------------------------------------------------------------
+      # STEP 5: Configure dlt secrets.toml
+      # -------------------------------------------------------------------------
+      # Důvod: dlt čte credentials z .dlt/secrets.toml (není v git)
+      # Vytváříme secrets.toml dynamicky z GitHub Secrets
+      # EOF syntax: heredoc pro multi-line string bez escapování
+      - name: Configure dlt secrets
+        run: |
+          mkdir -p ingestion/.dlt
+          cat > ingestion/.dlt/secrets.toml << EOF
+          [destination.bigquery.credentials]
+          project_id = "${{ secrets.GCP_PROJECT_ID }}"
+          private_key = "${{ secrets.BIGQUERY_PRIVATE_KEY }}"
+          client_email = "${{ secrets.BIGQUERY_CLIENT_EMAIL }}"
+          location = "US"
+          EOF
+
+      # -------------------------------------------------------------------------
+      # STEP 6: Run dlt pipeline (hlavní ingestion logika)
+      # -------------------------------------------------------------------------
+      # Důvod: Fetch stock data z yfinance a load do BigQuery
+      # working-directory: Mění pwd pro tento krok
+      # Conditional logic: full_refresh pokud user klikl checkbox, jinak incremental
+      - name: Run dlt pipeline
+        working-directory: ./ingestion
+        run: |
+          if [ "${{ github.event.inputs.full_refresh }}" == "true" ]; then
+            python stock_pipeline.py --full-refresh
+          else
+            python stock_pipeline.py
+          fi
+
+      # -------------------------------------------------------------------------
+      # STEP 7: Upload pipeline logs as artifacts
+      # -------------------------------------------------------------------------
+      # Důvod: Zachování logů pro debugging (viditelné v GitHub Actions UI)
+      # if: always() - spustí se i když předchozí step failnul
+      # retention-days: Logs se automaticky smažou po 30 dnech
+      - name: Upload pipeline logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs
+          path: logs/pipeline_run_*.log
+          retention-days: 30
+
+# =============================================================================
+# JOB 2: TRANSFORMATION (dbt - transform raw data → analytics models)
+# =============================================================================
+  transform-data:
+    name: Transform Data (dbt)
+    runs-on: ubuntu-latest
+
+    # needs: ingest-data - čeká dokud job 1 úspěšně nedoběhne
+    # Důvod: Nemůžeme transformovat data, která ještě nebyla ingestována
+    needs: ingest-data
+
+    steps:
+      # -------------------------------------------------------------------------
+      # STEP 1: Checkout code (znovu, každý job běží na novém VM)
+      # -------------------------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------------------------
+      # STEP 2: Setup Python (pro dbt-bigquery)
+      # -------------------------------------------------------------------------
+      # Důvod: dbt je Python package, potřebujeme Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      # -------------------------------------------------------------------------
+      # STEP 3: Install dbt-bigquery
+      # -------------------------------------------------------------------------
+      # Důvod: dbt-bigquery adapter pro komunikaci s BigQuery
+      # >=1.7.0 - minimální verze pro podporu Fusion features
+      - name: Install dbt dependencies
+        run: |
+          pip install --upgrade pip
+          pip install dbt-bigquery>=1.7.0
+
+      # -------------------------------------------------------------------------
+      # STEP 4: Create BigQuery credentials for dbt
+      # -------------------------------------------------------------------------
+      # Důvod: dbt profiles.yml používá environment variable DBT_BIGQUERY_KEYFILE
+      # Vytváříme credentials ve stejném místě jako dlt (ingestion/credentials/)
+      # OPRAVA: Původně jsem vytvářel v transformation/credentials/, ale:
+      #   - ingestion/credentials/ je správné místo (konzistence s dlt)
+      #   - profiles.yml prod target používá env var místo hardcoded path
+      - name: Create BigQuery credentials for dbt
+        run: |
+          mkdir -p ingestion/credentials
+          echo '${{ secrets.BIGQUERY_CREDENTIALS }}' > ingestion/credentials/dwhhbbi-credentials.json
+          # Export path as environment variable pro dbt profiles.yml
+          echo "DBT_BIGQUERY_KEYFILE=${{ github.workspace }}/ingestion/credentials/dwhhbbi-credentials.json" >> $GITHUB_ENV
+
+      # -------------------------------------------------------------------------
+      # STEP 5: Install dbt packages (dbt_utils, codegen)
+      # -------------------------------------------------------------------------
+      # Důvod: Instalace dependencies z packages.yml
+      # dbt deps = ekvivalent npm install nebo pip install -r requirements.txt
+      - name: Install dbt packages
+        working-directory: ./transformation
+        run: dbt deps
+
+      # -------------------------------------------------------------------------
+      # STEP 6: Run dbt build (run + test v jednom příkazu)
+      # -------------------------------------------------------------------------
+      # Důvod: Build všechny modely (staging → intermediate → marts) a spusť testy
+      # --profiles-dir . = použij profiles.yml v current directory
+      # --target prod = použij production target (stocks_dev dataset)
+      # dbt build = run models + test v dependency order
+      - name: Run dbt models
+        working-directory: ./transformation
+        run: dbt build --profiles-dir . --target prod
+
+      # -------------------------------------------------------------------------
+      # STEP 7: Upload dbt artifacts (manifest.json, run_results.json)
+      # -------------------------------------------------------------------------
+      # Důvod: Artifacts obsahují lineage, timings, test results pro analýzu
+      # manifest.json = complete DAG structure
+      # run_results.json = execution results, timings, errors
+      - name: Upload dbt artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-artifacts
+          path: |
+            transformation/target/manifest.json
+            transformation/target/run_results.json
+          retention-days: 30
+
+# =============================================================================
+# JOB 3: NOTIFICATION (check status a vytvoř summary)
+# =============================================================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+
+    # needs: [ingest-data, transform-data] - čeká na oba předchozí jobs
+    # if: always() - spustí se i když předchozí jobs failnou (chceme notifikaci vždy)
+    needs: [ingest-data, transform-data]
+    if: always()
+
+    steps:
+      # -------------------------------------------------------------------------
+      # STEP 1: Check overall pipeline status
+      # -------------------------------------------------------------------------
+      # Důvod: Zjistit jestli nějaký job failnul
+      # needs.<job>.result = success/failure/cancelled/skipped
+      # exit 1 = fail tento step (pro triggering external notifications)
+      - name: Check pipeline status
+        run: |
+          if [ "${{ needs.ingest-data.result }}" == "failure" ] || [ "${{ needs.transform-data.result }}" == "failure" ]; then
+            echo "PIPELINE_STATUS=❌ FAILED" >> $GITHUB_ENV
+            exit 1
+          else
+            echo "PIPELINE_STATUS=✅ SUCCESS" >> $GITHUB_ENV
+          fi
+
+      # -------------------------------------------------------------------------
+      # STEP 2: Create pipeline execution summary
+      # -------------------------------------------------------------------------
+      # Důvod: Viditelný summary v GitHub Actions UI (přehledná reportace)
+      # $GITHUB_STEP_SUMMARY = speciální file, který GitHub renderuje jako Markdown
+      # Výsledek: Přehledná tabulka se statusy všech jobs
+      - name: Pipeline summary
+        if: always()
+        run: |
+          echo "### Stock Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ env.PIPELINE_STATUS }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Ingestion:** ${{ needs.ingest-data.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Transformation:** ${{ needs.transform-data.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+
+# =============================================================================
+# WORKFLOW EXECUTION FLOW
+# =============================================================================
+# 1. Trigger: Cron (8:00 UTC weekdays) nebo manual
+# 2. Job 1 (ingest-data):
+#    - Checkout code
+#    - Setup Python + dependencies
+#    - Configure credentials
+#    - Run dlt pipeline (yfinance → BigQuery)
+#    - Upload logs
+# 3. Job 2 (transform-data):
+#    - Čeká na Job 1 success
+#    - Checkout code
+#    - Setup Python + dbt
+#    - Configure credentials
+#    - Run dbt build (raw → staging → intermediate → marts)
+#    - Upload artifacts
+# 4. Job 3 (notify):
+#    - Čeká na Job 1 & 2 (always runs)
+#    - Check status
+#    - Create summary
+#
+# Celkový čas: ~5-10 minut (závisí na počtu symbolů a dbt modelu)
+# Cost: $0 (GitHub Actions free tier: 2000 min/měsíc)
+# =============================================================================

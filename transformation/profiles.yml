@@ -1,12 +1,34 @@
 stocks_transformation:
-  target: dev
+  target: dev  # Default target pro local development
   outputs:
+    # ---------------------------------------------------------------------------
+    # DEV Target - Local development v VS Code s dbt Fusion
+    # ---------------------------------------------------------------------------
+    # Používá absolutní cestu k credentials (jen pro local, není v git)
     dev:
+      type: bigquery
+      threads: 16  # Paralelní execution pro rychlejší buildy
+      database: dwhhbbi  # GCP Project ID
+      schema: stocks_dev  # BigQuery dataset (dev environment)
+      method: service-account  # Autentizace pomocí service account JSON
+      # Absolutní cesta pro Windows local development
+      keyfile: D:/OneDrive/Data engineer/Projekty/Signiture_project/ingestion/credentials/dwhhbbi-21142b907feb.json
+      location: US  # BigQuery location
+      dataproc_batch: null  # Nepouživáme Dataproc
+
+    # ---------------------------------------------------------------------------
+    # PROD Target - GitHub Actions CI/CD + Production
+    # ---------------------------------------------------------------------------
+    # Používá environment variable pro credentials (bezpečné pro CI/CD)
+    # GitHub Actions nastaví DBT_BIGQUERY_KEYFILE env var při běhu
+    prod:
       type: bigquery
       threads: 16
       database: dwhhbbi
-      schema: stocks_dev
+      schema: stocks_dev  # Prozatím stejný dataset (později stocks_prod)
       method: service-account
-      keyfile: D:/OneDrive/Data engineer/Projekty/Signiture_project/ingestion/credentials/dwhhbbi-21142b907feb.json
+      # Environment variable - nastavená v GitHub Actions workflow
+      # Fallback: relativní cesta pokud env var neexistuje
+      keyfile: "{{ env_var('DBT_BIGQUERY_KEYFILE', '../ingestion/credentials/dwhhbbi-21142b907feb.json') }}"
       location: US
       dataproc_batch: null

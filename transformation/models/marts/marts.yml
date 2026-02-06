@@ -1,0 +1,176 @@
+version: 2
+
+models:
+  - name: dim_companies
+    description: "Company dimension table (SCD Type 1) with surrogate keys for dimensional modeling"
+    columns:
+      - name: company_key
+        description: "Surrogate key generated from company_symbol for dimensional modeling"
+        tests:
+          - not_null
+          - unique
+
+      - name: company_symbol
+        description: "Stock ticker symbol (business key)"
+        tests:
+          - not_null
+          - unique
+
+      - name: company_name
+        description: "Full company name"
+        tests:
+          - not_null
+
+      - name: company_sector
+        description: "Sector in which the company operates (e.g., Technology, Healthcare)"
+
+      - name: company_industry
+        description: "Specific industry within the sector"
+
+      - name: company_market_cap
+        description: "Market capitalization in USD"
+
+      - name: company_country
+        description: "Country where the company is headquartered"
+
+      - name: last_updated
+        description: "Timestamp when company metadata was last updated from source"
+
+      - name: dbt_updated_at
+        description: "Timestamp when this dimension record was last refreshed by dbt"
+
+  - name: dim_sectors
+    description: "Sector dimension table with surrogate keys for sector-level analysis"
+    columns:
+      - name: sector_key
+        description: "Surrogate key generated from sector_name for dimensional modeling"
+        tests:
+          - not_null
+          - unique
+
+      - name: sector_name
+        description: "Name of the sector (business key)"
+        tests:
+          - not_null
+
+      - name: industry_count
+        description: "Number of distinct industries within this sector"
+
+      - name: dbt_updated_at
+        description: "Timestamp when this dimension record was last refreshed by dbt"
+
+  - name: fct_daily_stock_performance
+    description: "Daily stock performance fact table combining price data, moving averages, and volatility metrics. Grain: one row per stock symbol per trading date"
+    columns:
+      - name: performance_key
+        description: "Surrogate key for the fact table (generated from stock_symbol + price_date)"
+        tests:
+          - not_null
+          - unique
+
+      - name: price_date
+        description: "Trading date"
+        tests:
+          - not_null
+
+      - name: company_key
+        description: "Foreign key to dim_companies"
+        tests:
+          - not_null
+          - relationships:
+              config:
+                where: "company_key IS NOT NULL"
+              arguments:
+                to: ref('dim_companies')
+                field: company_key
+
+      - name: sector_key
+        description: "Foreign key to dim_sectors"
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_sectors')
+                field: sector_key
+
+      - name: stock_symbol
+        description: "Stock ticker symbol (degenerate dimension)"
+        tests:
+          - not_null
+
+      # Price metrics
+      - name: open_price
+        description: "Opening price for the trading day"
+
+      - name: high_price
+        description: "Highest price during the trading day"
+
+      - name: low_price
+        description: "Lowest price during the trading day"
+
+      - name: close_price
+        description: "Closing price for the trading day"
+        tests:
+          - not_null
+
+      - name: volume_traded
+        description: "Number of shares traded during the day"
+
+      - name: prev_close_price
+        description: "Previous day's closing price (for return calculations)"
+
+      # Performance metrics
+      - name: daily_return_pct
+        description: "Day-over-day return percentage ((close - prev_close) / prev_close * 100)"
+
+      - name: intraday_change_pct
+        description: "Intraday movement percentage ((close - open) / open * 100)"
+
+      - name: price_range_pct
+        description: "Daily price range as percentage of close ((high - low) / close * 100)"
+
+      - name: typical_price
+        description: "Average of high, low, and close prices"
+
+      # Moving averages
+      - name: ma_20
+        description: "20-day simple moving average of close price"
+
+      - name: ma_50
+        description: "50-day simple moving average of close price"
+
+      - name: ma_200
+        description: "200-day simple moving average of close price"
+
+      - name: golden_cross
+        description: "Boolean flag: TRUE when MA20 crosses above MA50 (bullish signal)"
+
+      - name: death_cross
+        description: "Boolean flag: TRUE when MA20 crosses below MA50 (bearish signal)"
+
+      - name: trend_signal
+        description: "Overall trend indicator: strong_uptrend, uptrend, neutral, downtrend, strong_downtrend"
+
+      # Volatility metrics
+      - name: volatility_20d
+        description: "20-day rolling standard deviation of daily returns (percentage points)"
+
+      - name: volatility_50d
+        description: "50-day rolling standard deviation of daily returns (percentage points)"
+
+      - name: annualized_volatility_20d
+        description: "Annualized volatility based on 20-day rolling std dev (volatility * sqrt(252))"
+
+      - name: annualized_volatility_50d
+        description: "Annualized volatility based on 50-day rolling std dev (volatility * sqrt(252))"
+
+      - name: volatility_regime
+        description: "Volatility classification: low (<1%), normal (1-2%), elevated (2-3%), high (>3%)"
+
+      - name: trading_days_20d
+        description: "Number of trading days in 20-day window (data quality indicator)"
+
+      - name: trading_days_50d
+        description: "Number of trading days in 50-day window (data quality indicator)"
+
+      - name: dbt_updated_at
+        description: "Timestamp when this fact record was last refreshed by dbt"

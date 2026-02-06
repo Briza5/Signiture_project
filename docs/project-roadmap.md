@@ -1,13 +1,13 @@
 Stock Portfolio Pipeline - Project Roadmap
-Status: ✅ Phase 1 & Phase 2 Complete | 🔄 Phase 2 Marts Layer In Progress
+Status: ✅ Phase 1 & Phase 2 Complete
 Start Date: 2025-12-22
-Last Updated: 2026-02-05
+Last Updated: 2026-02-06
 Tech Stack: yfinance → dlt → BigQuery → dbt Fusion → Looker Studio
 
 🎯 Current Status
-Active Phase: Phase 2 - dbt Fusion Transformations (Marts Layer)
-Completed Phases: Phase 1 (Ingestion), Phase 2 Staging Layer, Phase 2 Intermediate Layer
-Current Task: Building marts layer (dimensions and facts)
+Active Phase: Phase 3 - Orchestration (Ready to start)
+Completed Phases: Phase 1 (Ingestion), Phase 2 (Staging, Intermediate, Marts)
+Current Task: Plan orchestration strategy (scheduler selection)
 Blockers: None
 Latest Achievements:
 
@@ -22,13 +22,16 @@ Latest Achievements:
   - int_moving_averages.sql (MA 20/50/200, golden/death cross, trend signals)
   - int_volatility_metrics.sql (rolling volatility 20/50d, annualized, regime classification)
 ✅ Custom macros: calculate_return.sql
+✅ Marts layer: 3 models COMPLETE
+  - dim_companies.sql (company dimension with surrogate keys)
+  - dim_sectors.sql (sector dimension with industry aggregation)
+  - fct_daily_stock_performance.sql (comprehensive daily metrics fact table)
 
 
 📚 dbt Fusion vs dbt Core - Key Learnings
 dbt Fusion Limitations (Discovered 2025-02-05):
 
 ❌ No dbt docs generate/serve - Cannot generate documentation site locally
-❌ No built-in lineage visualization - DAG diagrams not available in VS Code
 ✅ Full dbt Core feature parity - Macros, tests, packages, refs all work
 ✅ VS Code native integration - No CLI switching, inline previews
 ✅ Faster iteration cycles - Compile/run directly in editor
@@ -155,7 +158,7 @@ Tests & Documentation:
 ✅ Generic tests (not_null tests on key columns)
 ✅ All 3 models materialized successfully in BigQuery
 
-Marts Layer
+Marts Layer ✅ COMPLETE
 Architecture:
 
 Marts = Presentation layer with surrogate keys
@@ -164,30 +167,38 @@ Purpose: BI-ready denormalized tables
 
 Dimensions:
 
- dim_companies.sql (SCD Type 1 dimension)
+✅ dim_companies.sql (SCD Type 1 dimension) - COMPLETE
 
 Surrogate key: {{ dbt_utils.generate_surrogate_key(['company_symbol']) }}
 Grain: One row per company
+Columns: company_key, company_symbol, company_name, company_sector, company_industry, company_market_cap, company_country
+Tests: unique company_key, not_null constraints
 
 
- dim_sectors.sql (Sector dimension)
+✅ dim_sectors.sql (Sector dimension) - COMPLETE
 
-Surrogate key: {{ dbt_utils.generate_surrogate_key(['sector']) }}
+Surrogate key: {{ dbt_utils.generate_surrogate_key(['company_sector']) }}
+Grain: One row per sector
+Aggregation: industry_count per sector (GROUP BY implementation)
+Tests: unique sector_key, not_null constraints
 
 
- dim_date.sql (Date dimension - optional)
+ dim_date.sql (Date dimension - optional/future)
 
 Facts:
 
- fct_daily_stock_performance.sql (kompletni denni metriky)
+✅ fct_daily_stock_performance.sql (comprehensive daily metrics) - COMPLETE
 
-Join int_price_calculations + int_moving_averages + int_volatility
-Foreign keys to dimensions (company_sk, sector_sk)
+Joins: int_price_calculations + int_moving_averages + int_volatility_metrics
+Foreign keys: company_key → dim_companies, sector_key → dim_sectors
 Grain: One row per symbol per date
+Surrogate key: {{ dbt_utils.generate_surrogate_key(['stock_symbol', 'price_date']) }}
+Includes: OHLCV, returns, moving averages, volatility metrics, trend signals
+Tests: unique performance_key, FK relationships validated
 
 
 
-Aggregations:
+Aggregations (Future):
 
  agg_portfolio_summary.sql (cross-stock aggregace)
  agg_sector_performance.sql (sector level analytics)
@@ -785,5 +796,95 @@ Data quality checks (trading days count) essential for rolling calculations
 dbt ref() creates clean dependencies between intermediate models
 
 
-Last Updated: 2026-02-05 20:30 CET
-Next Milestone: Marts Layer → dim_companies.sql + dim_sectors.sql → fct_daily_stock_performance.sql
+2026-02-06 (Session 6) - Marts Layer Implementation & Completion
+Duration: ~1 hour
+Focus: Building dimensional model with fact and dimension tables
+Completed:
+
+✅ dim_companies.sql - Created and tested
+  - SCD Type 1 dimension with surrogate key from company_symbol
+  - Grain: One row per company
+  - All tests passed (unique, not_null)
+
+✅ dim_sectors.sql - Created and tested
+  - Sector dimension with industry count aggregation
+  - Initial implementation error: Used window function causing duplicates
+  - Fix: Changed to GROUP BY aggregation for proper grain
+  - All tests passed after fix
+
+✅ fct_daily_stock_performance.sql - Created and tested
+  - Comprehensive fact table joining all intermediate models
+  - FK relationships: company_key → dim_companies, sector_key → dim_sectors
+  - Grain: One row per stock_symbol + price_date
+  - Initial errors encountered and resolved
+
+✅ marts.yml - Complete documentation for all marts models
+  - Column-level descriptions
+  - Generic tests (unique, not_null, relationships)
+  - Fixed deprecated test syntax for relationships tests
+
+Technical Challenges Resolved:
+
+dim_sectors Duplicate Keys
+  - Issue: Window function COUNT() OVER (PARTITION BY sector) created multiple rows per sector
+  - Root cause: DISTINCT on (sector, industry) before aggregation created one row per industry
+  - Solution: Changed to GROUP BY sector with COUNT(DISTINCT industry)
+  - Result: Unique sector_key achieved
+
+fct_daily_stock_performance Errors
+  - Issue 1: unique_fct_daily_stock_performance_performance_key failed
+  - Issue 2: not_null_fct_daily_stock_performance_company_key failed
+  - Root cause: LEFT JOIN allowing NULL values, potential cartesian products
+  - Solution: Changed to INNER JOIN on dim_companies, proper FK relationships with dim_sectors
+  - Result: All tests passed
+
+Deprecated Test Syntax
+  - Issue: relationships tests using old format (to/field at top level)
+  - Solution: Migrated to new format with arguments: block
+  - Example: relationships: { arguments: { to: ref('dim_companies'), field: company_key }}
+
+Key SQL Patterns Used:
+
+GROUP BY for dimension aggregation (dim_sectors)
+INNER JOIN for mandatory FK relationships (dim_companies)
+LEFT JOIN for optional dimensions (dim_sectors when sector can be NULL)
+dbt_utils.generate_surrogate_key() for all dimension and fact surrogate keys
+Proper FK testing with relationships tests
+
+Analytics Engineering Lessons:
+
+Always preview data with dbt show before writing transformations
+GROUP BY > window functions for dimension tables (ensures grain)
+INNER JOIN when FK must be NOT NULL, LEFT JOIN when optional
+Test-driven development: Run dbt test after each model creation
+Fix errors iteratively: one model at a time, validate after each fix
+Follow dimensional modeling best practices: proper grain, surrogate keys, FK relationships
+
+dbt Testing Results:
+
+Total tests: 16
+Passed: 16
+Failed: 0 (after fixes)
+Coverage: Unique constraints, not null, FK relationships
+
+Next Actions:
+
+✅ Phase 2 Complete - All transformation layers built
+➡️ Phase 3: Orchestration - Select scheduler (GitHub Actions, Dagster, Airflow, Cloud Scheduler)
+➡️ Phase 4: Visualization - Build Looker Studio dashboards
+Future enhancements: agg_portfolio_summary.sql, agg_sector_performance.sql
+
+Portfolio Value:
+
+Complete dimensional model demonstrates:
+- Star schema design (fact + dimensions)
+- Proper surrogate key generation with dbt_utils
+- FK relationships with referential integrity testing
+- Analytics engineering best practices (grain, testing, documentation)
+- Iterative debugging and problem-solving skills
+- Understanding of dbt testing framework
+- Data modeling fundamentals (SCD Type 1, fact tables, dimensions)
+
+
+Last Updated: 2026-02-06 17:00 CET
+Next Milestone: Phase 3 - Orchestration (Scheduler Selection & Implementation)
