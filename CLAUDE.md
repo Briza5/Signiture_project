@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Stock market data pipeline project with two main components:
+Fully automated stock market data pipeline project with three main components:
 - **Ingestion** (`ingestion/`): dlt (data load tool) pipelines fetching stock data from yfinance API to BigQuery
 - **Transformation** (`transformation/`): dbt project transforming raw stock data into analytics-ready models
+- **Orchestration** (`.github/workflows/`, `orchestration/`): GitHub Actions automating daily pipeline execution
 
 ## Common Commands
 
@@ -51,7 +52,13 @@ dbt deps
 
 ### Data Flow
 ```
-yfinance API -> dlt pipeline -> BigQuery (stocks_raw) -> dbt staging -> dbt intermediate -> dbt marts
+GitHub Actions (cron: 8:00 UTC weekdays)
+    ↓
+yfinance API → dlt pipeline → BigQuery (stocks_raw)
+    ↓
+dbt staging → dbt intermediate → dbt marts
+    ↓
+Looker Studio (future)
 ```
 
 ### Ingestion Layer
@@ -80,7 +87,10 @@ yfinance API -> dlt pipeline -> BigQuery (stocks_raw) -> dbt staging -> dbt inte
   - `int_volatility_metrics`: Rolling volatility (20/50-day), annualized volatility, volatility regime classification
   - All materialized as views in `intermediate` schema
 
-- **Marts** (`models/marts/`): Materialized tables for analytics (currently empty, ready for fact/dim tables)
+- **Marts** (`models/marts/`): Materialized tables for analytics
+  - `dim_companies`: Company dimension (SCD Type 1) with surrogate keys
+  - `dim_sectors`: Sector dimension with industry count aggregation
+  - `fct_daily_stock_performance`: Comprehensive fact table joining all intermediate models (OHLCV, returns, MAs, volatility)
 
 ### Key dbt Macros
 - `calculate_return(current_value, previous_value)`: Calculates percentage returns using SAFE_DIVIDE, rounds to 4 decimals
@@ -91,6 +101,18 @@ yfinance API -> dlt pipeline -> BigQuery (stocks_raw) -> dbt staging -> dbt inte
 - **Partitioning**: All window functions partition by `stock_symbol` and order by `price_date`
 - **Moving Averages**: Calculated using AVG() OVER with ROWS BETWEEN window frames
 - **Volatility**: Uses STDDEV_POP() over rolling windows for consistency
+
+### Orchestration Layer
+- **GitHub Actions** (`.github/workflows/stocks-pipeline.yml`): Automated daily pipeline execution
+  - **Schedule**: Cron every weekday 8:00 AM UTC (after US market close)
+  - **Manual trigger**: workflow_dispatch with full_refresh option
+  - **Jobs**:
+    1. `ingest-data`: Runs dlt pipeline (yfinance → BigQuery)
+    2. `transform-data`: Runs dbt build (staging → intermediate → marts)
+    3. `notify`: Checks status and creates execution summary
+  - **Credentials**: Uses `GOOGLE_APPLICATION_CREDENTIALS` environment variable
+  - **Artifacts**: Uploads pipeline logs and dbt artifacts (30-day retention)
+- **Documentation**: See `orchestration/github-actions/setup.md` for detailed setup instructions
 
 ## Configuration
 

@@ -1,13 +1,13 @@
 Stock Portfolio Pipeline - Project Roadmap
-Status: ✅ Phase 1 & Phase 2 Complete
+Status: ✅ Phase 1, 2 & 3 Complete | 🎯 Ready for Phase 4 (Visualization)
 Start Date: 2025-12-22
 Last Updated: 2026-02-06
-Tech Stack: yfinance → dlt → BigQuery → dbt Fusion → Looker Studio
+Tech Stack: yfinance → dlt → BigQuery → dbt Fusion → GitHub Actions → Looker Studio
 
 🎯 Current Status
-Active Phase: Phase 3 - Orchestration (Ready to start)
-Completed Phases: Phase 1 (Ingestion), Phase 2 (Staging, Intermediate, Marts)
-Current Task: Plan orchestration strategy (scheduler selection)
+Active Phase: Phase 4 - Visualization (Ready to start)
+Completed Phases: Phase 1 (Ingestion), Phase 2 (Transformation), Phase 3 (Orchestration)
+Current Task: Build Looker Studio dashboard
 Blockers: None
 Latest Achievements:
 
@@ -26,6 +26,11 @@ Latest Achievements:
   - dim_companies.sql (company dimension with surrogate keys)
   - dim_sectors.sql (sector dimension with industry aggregation)
   - fct_daily_stock_performance.sql (comprehensive daily metrics fact table)
+✅ Orchestration: GitHub Actions COMPLETE
+  - Automated daily pipeline (8:00 UTC weekdays)
+  - Full workflow: Ingestion → Transformation → Notification
+  - Artifacts: Logs & dbt artifacts uploaded
+  - Manual trigger option for testing
 
 
 📚 dbt Fusion vs dbt Core - Key Learnings
@@ -213,28 +218,43 @@ dbt Best Practices
  Lineage tracking (via dbt Core docs when needed)
 
 
-⚙️ Phase 3: Orchestrace
-Scheduler Options Evaluation
+⚙️ Phase 3: Orchestrace ✅ COMPLETE
+Scheduler Decision
 
- GitHub Actions research (free tier limits)
- Dagster Cloud research (free tier features)
- Apache Airflow evaluation (local setup)
- Astronomer Cosmos research (dbt + Airflow integration)
- GCP Cloud Scheduler + Cloud Run research
- Decision: Vybrany scheduler
+✅ GitHub Actions selected (free tier: 2000 min/month)
+ Dagster Cloud - deferred (future enhancement)
+ Apache Airflow - deferred (overkill for current scale)
+ Astronomer Cosmos - deferred (requires Airflow)
+ GCP Cloud Scheduler - deferred (GitHub Actions sufficient)
 
-Implementation
+Implementation ✅ COMPLETE
 
- dlt pipeline automation (denni 8:00 AM UTC)
- dbt Fusion run trigger (po dlt completion)
- Failure notifications (email/Slack webhook)
- Manual trigger option (dev testing)
+✅ GitHub Actions workflow (.github/workflows/stocks-pipeline.yml)
+✅ Automated daily runs (cron: 8:00 AM UTC weekdays)
+✅ 3 jobs: Ingestion → Transformation → Notification
+✅ dlt pipeline automation with GOOGLE_APPLICATION_CREDENTIALS
+✅ dbt build automation (staging → intermediate → marts)
+✅ Manual trigger option (workflow_dispatch with full_refresh param)
+✅ Artifacts upload (pipeline logs + dbt artifacts)
+✅ Environment variable management for credentials
+✅ Error handling with if-no-files-found: warn
+✅ Comprehensive inline comments for education
 
-Monitoring
+Documentation ✅ COMPLETE
 
- Pipeline run history tracking
- Data freshness checks (stale data alerts)
- Cost monitoring (BigQuery query costs)
+✅ orchestration/README.md (overview all schedulers)
+✅ orchestration/github-actions/setup.md (step-by-step guide)
+✅ orchestration/github-actions/secrets.env.example (template)
+✅ Fully commented workflow YAML (educational)
+
+Monitoring (Current State)
+
+✅ GitHub Actions UI for logs & status
+✅ Pipeline run history in BigQuery (stocks_raw.pipeline_runs)
+✅ Artifacts retention (30 days)
+ Advanced monitoring - deferred (Slack/email notifications)
+ Data freshness alerts - deferred (Phase 5)
+ Cost dashboard - deferred (Phase 5)
 
 
 📊 Phase 4: Vizualizace
@@ -886,5 +906,167 @@ Complete dimensional model demonstrates:
 - Data modeling fundamentals (SCD Type 1, fact tables, dimensions)
 
 
-Last Updated: 2026-02-06 17:00 CET
-Next Milestone: Phase 3 - Orchestration (Scheduler Selection & Implementation)
+2026-02-06 (Session 7) - Phase 3 Orchestration Implementation & Completion
+Duration: ~3 hours
+Focus: GitHub Actions workflow setup, debugging, and successful deployment
+Completed:
+
+✅ GitHub Actions Workflow Architecture
+  - 3-job pipeline: Ingestion → Transformation → Notification
+  - Cron schedule: Every weekday 8:00 AM UTC
+  - Manual trigger with full_refresh option
+  - Comprehensive error handling
+
+✅ Workflow File Creation (.github/workflows/stocks-pipeline.yml)
+  - 350+ lines of fully commented YAML
+  - Educational inline comments explaining every step
+  - Environment variable management
+  - Secrets integration
+
+✅ dbt profiles.yml Enhancement
+  - Added prod target for CI/CD
+  - Environment variable support: DBT_BIGQUERY_KEYFILE
+  - Fallback to relative path for local dev
+  - Dual-target strategy (dev for local, prod for GitHub Actions)
+
+✅ Orchestration Documentation
+  - orchestration/README.md (scheduler comparison)
+  - orchestration/github-actions/setup.md (step-by-step guide)
+  - orchestration/github-actions/secrets.env.example (template)
+
+Technical Challenges Resolved:
+
+1. Credentials Path Issues
+   - Issue: Step 4 tried to create file before directory existed
+   - Solution: Added mkdir -p ingestion/credentials before file creation
+   - Learning: Always verify directory structure before file operations
+
+2. Logs Artifact Warning
+   - Issue: logs/ folder in .gitignore caused "no files found" error
+   - Solution: Added if-no-files-found: warn parameter
+   - Learning: Artifact upload should gracefully handle missing files
+
+3. dlt secrets.toml TOML Parse Error (CRITICAL)
+   - Issue: private_key contains newlines (control chars < 0x1f)
+   - Error: "Control characters not allowed in strings, use \u000a instead"
+   - Attempts:
+     a) Individual fields in TOML → Failed (newline chars)
+     b) service_account_json_file_path → Uncertain dlt support
+     c) Environment variable with JSON → Best practice approach
+   - Solution: GOOGLE_APPLICATION_CREDENTIALS env var
+     - Standard Google Cloud approach
+     - dlt auto-discovers credentials from this env var
+     - Minimal secrets.toml (only location = "US")
+   - Code:
+     echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/ingestion/credentials/dwhhbbi-credentials.json" >> $GITHUB_ENV
+
+4. YAML Syntax Errors
+   - Issue: Heredoc content interpreted as YAML structure
+   - Error: "Implicit map keys need to be followed by map values"
+   - Root cause: [destination.bigquery] looked like YAML mapping
+   - Solution: Replaced heredoc with simple echo commands
+   - Learning: YAML parser can misinterpret heredoc; use echo for safety
+
+5. GitHub Actions Not Visible
+   - Issue: Workflow not appearing in Actions tab
+   - Root cause: YAML syntax errors prevented workflow registration
+   - Solution: Fixed all YAML indentation and syntax issues
+   - Validation: python -c "import yaml; yaml.safe_load(...)"
+
+Workflow Execution Success:
+
+✅ Job 1 (Ingestion): Successful
+  - Python 3.11 environment setup
+  - Dependencies installed from requirements.txt
+  - BigQuery credentials configured
+  - dlt secrets.toml created with GOOGLE_APPLICATION_CREDENTIALS
+  - stock_pipeline.py executed successfully
+  - Logs uploaded as artifacts
+
+✅ Job 2 (Transformation): Successful
+  - dbt-bigquery installed
+  - dbt packages installed (dbt deps)
+  - dbt build --target prod executed
+  - All models built: staging → intermediate → marts
+  - dbt artifacts uploaded (manifest.json, run_results.json)
+
+✅ Job 3 (Notification): Successful
+  - Pipeline status checked
+  - Summary created in GitHub Actions UI
+
+Key Implementation Patterns:
+
+Environment Variable Strategy:
+# Step 4: Create JSON credentials file
+mkdir -p ingestion/credentials
+echo '${{ secrets.BIGQUERY_CREDENTIALS }}' > ingestion/credentials/dwhhbbi-credentials.json
+
+# Step 5: Set GOOGLE_APPLICATION_CREDENTIALS (not individual TOML fields)
+echo "[destination.bigquery]" > ingestion/.dlt/secrets.toml
+echo 'location = "US"' >> ingestion/.dlt/secrets.toml
+echo "GOOGLE_APPLICATION_CREDENTIALS=${{ github.workspace }}/ingestion/credentials/dwhhbbi-credentials.json" >> $GITHUB_ENV
+
+# dbt profiles.yml prod target
+keyfile: "{{ env_var('DBT_BIGQUERY_KEYFILE', '../ingestion/credentials/dwhhbbi-21142b907feb.json') }}"
+
+Artifact Management:
+- Logs: retention-days: 30, if-no-files-found: warn
+- dbt artifacts: manifest.json + run_results.json for lineage analysis
+
+GitHub Secrets Required:
+1. BIGQUERY_CREDENTIALS (full JSON service account)
+2. GCP_PROJECT_ID (dwhhbbi)
+3. BIGQUERY_PRIVATE_KEY (not used - switched to full JSON)
+4. BIGQUERY_CLIENT_EMAIL (not used - switched to full JSON)
+
+Architecture Decisions:
+
+Why GitHub Actions?
+✅ Free tier: 2000 min/month (plenty for daily 10-min runs)
+✅ Zero infrastructure management
+✅ Native Git integration
+✅ Simple YAML configuration
+✅ Built-in secrets management
+✅ Artifact storage included
+
+Why GOOGLE_APPLICATION_CREDENTIALS over TOML fields?
+✅ Standard Google Cloud practice
+✅ Avoids TOML escaping issues (newlines, special chars)
+✅ Single source of truth (JSON file)
+✅ Consistent with dbt approach
+✅ Automatic discovery by all Google libraries
+
+Portfolio Value:
+
+This phase demonstrates:
+- CI/CD pipeline design and implementation
+- GitHub Actions expertise (workflow, jobs, secrets, artifacts)
+- Debugging complex YAML and TOML issues
+- Environment variable management in CI/CD
+- Google Cloud authentication best practices
+- Comprehensive technical documentation
+- Educational code commenting (350+ lines explained)
+- Problem-solving through iterative debugging
+- Understanding of data pipeline orchestration patterns
+
+Next Actions:
+
+✅ Phase 3 Complete - Fully automated pipeline
+➡️ Phase 4: Visualization - Build Looker Studio dashboard
+➡️ Phase 5: Enhancements - Data quality, monitoring, alerts
+Future: Expand data sources (financial statements, earnings, dividends)
+
+Key Takeaways:
+
+1. Always verify directory structure before file operations in CI/CD
+2. GOOGLE_APPLICATION_CREDENTIALS is cleaner than parsing JSON fields into TOML
+3. YAML heredoc can confuse parsers - use simple echo when possible
+4. GitHub Actions artifact upload should use if-no-files-found: warn for robustness
+5. Comprehensive inline comments turn workflows into educational resources
+6. dbt profiles.yml env_var() with fallback enables dev/prod flexibility
+7. GitHub Secrets + environment variables = clean credential management
+8. Test YAML syntax locally before push (python yaml.safe_load())
+
+
+Last Updated: 2026-02-06 22:30 CET
+Next Milestone: Phase 4 - Visualization (Looker Studio Dashboard)
