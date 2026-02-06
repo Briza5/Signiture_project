@@ -55,9 +55,9 @@ GitHub Secrets = šifrované environment variables pro CI/CD
 Your Repository → Settings → Secrets and variables → Actions → New repository secret
 ```
 
-### 2.2 Vytvořit Secrets
+### 2.2 Vytvořit Secret (pouze 1 potřebný!)
 
-#### Secret 1: `BIGQUERY_CREDENTIALS`
+#### `BIGQUERY_CREDENTIALS` (JEDINÝ potřebný secret)
 ```
 Name: BIGQUERY_CREDENTIALS
 Value: <celý obsah service account JSON souboru>
@@ -66,7 +66,7 @@ Value: <celý obsah service account JSON souboru>
 **Jak získat:**
 ```bash
 # Windows PowerShell
-Get-Content "D:\OneDrive\Data engineer\Projekty\Signiture_project\ingestion\credentials\dwhhbbi-21142b907feb.json" | Set-Clipboard
+Get-Content "ingestion\credentials\dwhhbbi-credentials.json" | Set-Clipboard
 
 # Pak Ctrl+V do GitHub Secret value field
 ```
@@ -80,64 +80,29 @@ Get-Content "D:\OneDrive\Data engineer\Projekty\Signiture_project\ingestion\cred
   "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
   "client_email": "...",
   "client_id": "...",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
   ...
 }
 ```
 
-#### Secret 2: `GCP_PROJECT_ID`
-```
-Name: GCP_PROJECT_ID
-Value: dwhhbbi
-```
+**Proč pouze 1 secret?**
+- Workflow používá `GOOGLE_APPLICATION_CREDENTIALS` environment variable
+- Google Cloud automaticky načte celý JSON soubor
+- Není potřeba parsovat individual fields (private_key, client_email) do TOML
+- Vyhýbáme se problémům s TOML escapováním newlines v private_key
 
-#### Secret 3: `BIGQUERY_PRIVATE_KEY`
-```
-Name: BIGQUERY_PRIVATE_KEY
-Value: <private_key z JSON credentials>
-```
+### 2.3 Verify Secret
 
-**Jak extrahovat:**
-```python
-# Python one-liner
-import json
-with open('ingestion/credentials/dwhhbbi-21142b907feb.json') as f:
-    data = json.load(f)
-    print(data['private_key'])
-
-# Zkopíruj output včetně -----BEGIN PRIVATE KEY----- a -----END PRIVATE KEY-----
-```
-
-#### Secret 4: `BIGQUERY_CLIENT_EMAIL`
-```
-Name: BIGQUERY_CLIENT_EMAIL
-Value: <client_email z JSON credentials>
-```
-
-**Jak extrahovat:**
-```python
-# Python
-import json
-with open('ingestion/credentials/dwhhbbi-21142b907feb.json') as f:
-    data = json.load(f)
-    print(data['client_email'])
-
-# Output: something@dwhhbbi.iam.gserviceaccount.com
-```
-
-### 2.3 Verify Secrets
-
-Po přidání všech secrets:
+Po přidání secretu:
 ```
 Settings → Secrets and variables → Actions
 ```
 
 Měli byste vidět:
-- `BIGQUERY_CREDENTIALS`
-- `GCP_PROJECT_ID`
-- `BIGQUERY_PRIVATE_KEY`
-- `BIGQUERY_CLIENT_EMAIL`
+- ✅ `BIGQUERY_CREDENTIALS`
 
-⚠️ **Pozor**: Nemůžete zobrazit hodnotu secrets po uložení (jen název)
+⚠️ **Pozor**: Nemůžete zobrazit hodnotu secretu po uložení (jen název)
 
 ---
 
@@ -277,40 +242,79 @@ schedule:
 **Symptom**: Workflow failuje s "Required secrets not set"
 
 **Fix:**
-1. Verify secrets existence: Settings → Secrets
-2. Check jména secrets (case-sensitive)
+1. Verify secret existence: Settings → Secrets → Actions
+2. Check secret name je přesně `BIGQUERY_CREDENTIALS` (case-sensitive)
 3. Re-create secret pokud má typo
+
+### Problem: Missing credentials directory
+
+**Symptom**: `No such file or directory: ingestion/credentials/dwhhbbi-credentials.json`
+
+**Fix:** ✅ Již vyřešeno ve workflow
+- Workflow nyní obsahuje `mkdir -p ingestion/credentials` před vytvořením JSON file
+- Pokud problém přetrvává, verify Step 4 v Job 1 obsahuje mkdir příkaz
+
+### Problem: TOML parse error (DEPRECATED)
+
+**Symptom**: `Control characters (codes less than 0x1f and 0x7f) are not allowed in strings`
+
+**Fix:** ✅ Již vyřešeno pomocí GOOGLE_APPLICATION_CREDENTIALS
+- Starý přístup: Parsování individual fields do TOML (nefungovalo kvůli newlines v private_key)
+- Nový přístup: Celý JSON jako soubor + GOOGLE_APPLICATION_CREDENTIALS env var
+- Workflow již používá správný přístup
+
+### Problem: YAML syntax errors
+
+**Symptom**: `Implicit map keys need to be followed by map values at line X`
+
+**Fix:** ✅ Již vyřešeno ve workflow
+- Problém: Heredoc syntax s TOML obsahem zmátl YAML parser
+- Řešení: Použití simple echo commands místo heredoc
+- Workflow nyní používá: `echo "[destination.bigquery]" > file`
+
+### Problem: Logs artifact warning
+
+**Symptom**: `No files were found with the provided path: logs/pipeline_run_*.log`
+
+**Fix:** ✅ Již vyřešeno ve workflow
+- Workflow nyní obsahuje `if-no-files-found: warn` v upload artifact step
+- Pouze warning místo error pokud logy neexistují (např. při early failure)
 
 ### Problem: BigQuery authentication failed
 
 **Symptom**: "Could not authenticate to BigQuery"
 
 **Fix:**
-1. Verify `BIGQUERY_CREDENTIALS` obsahuje platný JSON
-2. Check service account má permissions:
+1. Verify `BIGQUERY_CREDENTIALS` secret obsahuje platný JSON (celý soubor)
+2. Check JSON formát je správný (valid JSON syntax)
+3. Verify service account má permissions:
    - BigQuery Data Editor
    - BigQuery Job User
    - BigQuery Read Session User
+4. Check GOOGLE_APPLICATION_CREDENTIALS env var je nastavena ve workflow
 
 ### Problem: dbt build fails
 
 **Symptom**: `dbt build` krok failuje
 
 **Fix:**
-1. Check dbt artifacts pro error message
-2. Verify `prod` target v `profiles.yml`
-3. Test `dbt debug` lokálně
-4. Check environment variable `DBT_BIGQUERY_KEYFILE`
+1. Check dbt artifacts pro error message (download z workflow artifacts)
+2. Verify `prod` target existuje v `transformation/profiles.yml`
+3. Verify `DBT_BIGQUERY_KEYFILE` env var je nastavena v Job 2, Step 4
+4. Test `dbt debug --target prod` lokálně
+5. Check BigQuery dataset `stocks_dev` existuje
 
 ### Problem: Workflow není visible
 
 **Symptom**: Nevidím workflow v Actions tab
 
 **Fix:**
-1. Verify `.github/workflows/stocks-pipeline.yml` je committed
-2. Push na GitHub: `git push origin master`
-3. Wait 1-2 minuty pro GitHub indexing
-4. Refresh Actions tab
+1. Verify `.github/workflows/stocks-pipeline.yml` je committed a pushed
+2. Check YAML syntax je validní (použij YAML validator)
+3. Push na GitHub: `git push origin master`
+4. Wait 1-2 minuty pro GitHub indexing
+5. Refresh Actions tab
+6. Check Settings → Actions → General: "Allow all actions" je enabled
 
 ---
 
