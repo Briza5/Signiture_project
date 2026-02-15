@@ -269,9 +269,13 @@ jobs:
     needs: transform-data
     if: success()
 
+    # GitHub Pages environment - nutné pro deployment API
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     # GitHub Pages permissions - nutné pro deployment
     permissions:
-      contents: read
       pages: write
       id-token: write
 
@@ -313,19 +317,32 @@ jobs:
           echo "- [Elementary Report](elementary.html) - Data quality monitoring and anomaly detection" >> gh-pages/README.md
 
       # -------------------------------------------------------------------------
-      # STEP 3: Upload to GitHub Pages
+      # STEP 3: Setup GitHub Pages
       # -------------------------------------------------------------------------
-      # Důvod: Publikace dokumentace na https://<username>.github.io/<repo>/
-      # peaceiris/actions-gh-pages = populární action pro GitHub Pages deployment
-      # github_token: Automatický token, nepotřebuje konfiguraci secrets
-      # publish_dir: Složka s obsahem pro publikaci
-      # force_orphan: true = vytvoří clean gh-pages branch bez historie (menší velikost)
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      # Důvod: Konfigurace GitHub Pages pro deployment
+      # Oficiální GitHub action - používá Pages deployment API (ne gh-pages branch)
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+
+      # -------------------------------------------------------------------------
+      # STEP 4: Upload artifact for GitHub Pages
+      # -------------------------------------------------------------------------
+      # Důvod: Upload připraveného obsahu jako Pages artifact
+      # actions/upload-pages-artifact - speciální artifact pro GitHub Pages
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./gh-pages
-          force_orphan: true
+          path: ./gh-pages
+
+      # -------------------------------------------------------------------------
+      # STEP 5: Deploy to GitHub Pages
+      # -------------------------------------------------------------------------
+      # Düvod: Publikace dokumentace na https://<username>.github.io/<repo>/
+      # actions/deploy-pages - oficiální GitHub Pages deployment (ne git push)
+      # Výstup: page_url = URL publikované dokumentace
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
 # =============================================================================
 # JOB 4: NOTIFICATION (check status a vytvoř summary)
@@ -403,7 +420,7 @@ jobs:
 #    - Čeká na Job 2 success
 #    - Download documentation artifacts
 #    - Prepare GitHub Pages structure (/ = dbt docs, /elementary.html = Elementary report)
-#    - Deploy to GitHub Pages (gh-pages branch)
+#    - Deploy to GitHub Pages (using Pages deployment API, no gh-pages branch needed)
 # 5. Job 4 (notify):
 #    - Čeká na Job 1, 2 & 3 (always runs)
 #    - Check status
