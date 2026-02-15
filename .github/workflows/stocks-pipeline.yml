@@ -215,7 +215,30 @@ jobs:
         run: dbt build --profiles-dir . --target prod
 
       # -------------------------------------------------------------------------
-      # STEP 7: Upload dbt artifacts (manifest.json, run_results.json)
+      # STEP 7: Generate dbt documentation
+      # -------------------------------------------------------------------------
+      # Důvod: Vytvoří interaktivní HTML dokumentaci s lineage, schemas, tests
+      # Výstup: target/index.html + manifest.json + catalog.json
+      # catalog.json obsahuje column-level metadata z BigQuery information_schema
+      - name: Generate dbt docs
+        working-directory: ./transformation
+        run: dbt docs generate --profiles-dir . --target prod
+
+      # -------------------------------------------------------------------------
+      # STEP 8: Install Elementary CLI and generate data quality report
+      # -------------------------------------------------------------------------
+      # Důvod: Elementary Report poskytuje data quality monitoring, anomaly detection
+      # elementary-data[bigquery] = edr CLI tool + BigQuery support
+      # edr report = generuje elementary_report.html s test results a anomaliemi
+      - name: Install Elementary CLI
+        run: pip install 'elementary-data[bigquery]'
+
+      - name: Generate Elementary report
+        working-directory: ./transformation
+        run: edr report --profiles-dir .
+
+      # -------------------------------------------------------------------------
+      # STEP 9: Upload dbt artifacts (manifest.json, run_results.json)
       # -------------------------------------------------------------------------
       # Důvod: Artifacts obsahují lineage, timings, test results pro analýzu
       # manifest.json = complete DAG structure
@@ -230,16 +253,100 @@ jobs:
             transformation/target/run_results.json
           retention-days: 30
 
+      # -------------------------------------------------------------------------
+      # STEP 10: Upload documentation for GitHub Pages
+      # -------------------------------------------------------------------------
+      # Důvod: Připravit dbt docs + Elementary report pro publikaci
+      # dbt docs: target/index.html + manifest.json + catalog.json + compiled SQL
+      # Elementary: edr_target/elementary_report.html
+      - name: Upload documentation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: |
+            transformation/target/index.html
+            transformation/target/manifest.json
+            transformation/target/catalog.json
+            transformation/target/graph.gpickle
+            transformation/target/compiled/
+            transformation/edr_target/elementary_report.html
+          retention-days: 30
+
 # =============================================================================
-# JOB 3: NOTIFICATION (check status a vytvoř summary)
+# JOB 3: DEPLOY DOCUMENTATION (publish dbt docs + Elementary report to GitHub Pages)
+# =============================================================================
+  deploy-docs:
+    name: Deploy Documentation to GitHub Pages
+    runs-on: ubuntu-latest
+
+    # needs: transform-data - čeká dokud transformation job úspěšně nedoběhne
+    # only: success() - spustí se pouze pokud transform-data job uspěl (máme co publikovat)
+    needs: transform-data
+    if: success()
+
+    # GitHub Pages permissions - nutné pro deployment
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    steps:
+      # -------------------------------------------------------------------------
+      # STEP 1: Download documentation artifacts from transform-data job
+      # -------------------------------------------------------------------------
+      # Důvod: Každý job běží na novém VM, musíme stáhnout artifacts z předchozího jobu
+      - name: Download documentation artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: documentation
+          path: ./docs
+
+      # -------------------------------------------------------------------------
+      # STEP 2: Prepare GitHub Pages structure
+      # -------------------------------------------------------------------------
+      # Důvod: Vytvoření user-friendly struktury pro GitHub Pages
+      # Struktura:
+      #   / = dbt docs (index.html, manifest.json, catalog.json)
+      #   /elementary.html = Elementary data quality report
+      - name: Prepare GitHub Pages content
+        run: |
+          mkdir -p gh-pages
+          # Copy dbt docs to root (homepage)
+          cp -r docs/transformation/target/* gh-pages/
+          # Copy Elementary report to root as elementary.html
+          cp docs/transformation/edr_target/elementary_report.html gh-pages/elementary.html
+          # Create simple README for GitHub Pages
+          echo "# Stock Pipeline Documentation" > gh-pages/README.md
+          echo "" >> gh-pages/README.md
+          echo "- [dbt Documentation](index.html) - Data models, lineage, and tests" >> gh-pages/README.md
+          echo "- [Elementary Report](elementary.html) - Data quality monitoring and anomaly detection" >> gh-pages/README.md
+
+      # -------------------------------------------------------------------------
+      # STEP 3: Upload to GitHub Pages
+      # -------------------------------------------------------------------------
+      # Důvod: Publikace dokumentace na https://<username>.github.io/<repo>/
+      # peaceiris/actions-gh-pages = populární action pro GitHub Pages deployment
+      # github_token: Automatický token, nepotřebuje konfiguraci secrets
+      # publish_dir: Složka s obsahem pro publikaci
+      # force_orphan: true = vytvoří clean gh-pages branch bez historie (menší velikost)
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages
+          force_orphan: true
+
+# =============================================================================
+# JOB 4: NOTIFICATION (check status a vytvoř summary)
 # =============================================================================
   notify:
     name: Send Notifications
     runs-on: ubuntu-latest
 
-    # needs: [ingest-data, transform-data] - čeká na oba předchozí jobs
-    # if: always() - spustí se i když předchozí jobs failnou (chceme notifikaci vždy)
-    needs: [ingest-data, transform-data]
+    # needs: [ingest-data, transform-data, deploy-docs] - čeká na všechny předchozí jobs
+    # if: always() - spustí se i když předchozí jobs failnu (chceme notifikaci vždy)
+    needs: [ingest-data, transform-data, deploy-docs]
     if: always()
 
     steps:
@@ -249,6 +356,7 @@ jobs:
       # Důvod: Zjistit jestli nějaký job failnul
       # needs.<job>.result = success/failure/cancelled/skipped
       # exit 1 = fail tento step (pro triggering external notifications)
+      # deploy-docs je optional - může být skipped pokud transform-data failnul
       - name: Check pipeline status
         run: |
           if [ "${{ needs.ingest-data.result }}" == "failure" ] || [ "${{ needs.transform-data.result }}" == "failure" ]; then
@@ -261,9 +369,9 @@ jobs:
       # -------------------------------------------------------------------------
       # STEP 2: Create pipeline execution summary
       # -------------------------------------------------------------------------
-      # Důvod: Viditelný summary v GitHub Actions UI (přehledná reportace)
+      # Düvod: Viditelný summary v GitHub Actions UI (přehledná reportace)
       # $GITHUB_STEP_SUMMARY = speciální file, který GitHub renderuje jako Markdown
-      # Výsledek: Přehledná tabulka se statusy všech jobs
+      # Výsledek: Přehledná tabulka se statusy všech jobs + odkazy na GitHub Pages
       - name: Pipeline summary
         if: always()
         run: |
@@ -272,8 +380,15 @@ jobs:
           echo "**Status:** ${{ env.PIPELINE_STATUS }}" >> $GITHUB_STEP_SUMMARY
           echo "**Ingestion:** ${{ needs.ingest-data.result }}" >> $GITHUB_STEP_SUMMARY
           echo "**Transformation:** ${{ needs.transform-data.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Documentation:** ${{ needs.deploy-docs.result }}" >> $GITHUB_STEP_SUMMARY
           echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Run ID:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.deploy-docs.result }}" == "success" ]; then
+            echo "### 📚 Documentation Links" >> $GITHUB_STEP_SUMMARY
+            echo "- [dbt Docs](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Elementary Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/elementary.html)" >> $GITHUB_STEP_SUMMARY
+          fi
 
 # =============================================================================
 # WORKFLOW EXECUTION FLOW
@@ -291,12 +406,20 @@ jobs:
 #    - Setup Python + dbt
 #    - Configure credentials
 #    - Run dbt build (raw → staging → intermediate → marts)
+#    - Generate dbt docs (index.html + manifest.json + catalog.json)
+#    - Generate Elementary report (elementary_report.html)
 #    - Upload artifacts
-# 4. Job 3 (notify):
-#    - Čeká na Job 1 & 2 (always runs)
+# 4. Job 3 (deploy-docs):
+#    - Čeká na Job 2 success
+#    - Download documentation artifacts
+#    - Prepare GitHub Pages structure (/ = dbt docs, /elementary.html = Elementary report)
+#    - Deploy to GitHub Pages (gh-pages branch)
+# 5. Job 4 (notify):
+#    - Čeká na Job 1, 2 & 3 (always runs)
 #    - Check status
-#    - Create summary
+#    - Create summary with documentation links
 #
 # Celkový čas: ~5-10 minut (závisí na počtu symbolů a dbt modelu)
 # Cost: $0 (GitHub Actions free tier: 2000 min/měsíc)
+# GitHub Pages: https://<username>.github.io/<repo>/ (dbt docs + Elementary report)
 # =============================================================================
