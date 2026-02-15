@@ -48,6 +48,22 @@ dbt docs serve
 dbt deps
 ```
 
+## Live Documentation
+
+**Published on GitHub Pages (auto-updated daily):**
+- 🔗 **[dbt Docs](https://briza5.github.io/Signiture_project/)** - Interactive data model documentation, DAG lineage, column-level metadata
+- 🔗 **[Elementary Report](https://briza5.github.io/Signiture_project/elementary.html)** - Data quality monitoring, test results, anomaly detection
+
+**Local preview:**
+```bash
+# dbt docs (from transformation/ directory)
+dbt docs generate
+dbt docs serve  # Opens browser at http://localhost:8080
+
+# Elementary report (from transformation/ directory)
+edr report --profiles-dir .  # Generates transformation/edr_target/elementary_report.html
+```
+
 ### Elementary Data Observability (from `transformation/` directory)
 ```bash
 # Generate Elementary data quality report
@@ -137,11 +153,15 @@ Looker Studio (future)
   - **Manual trigger**: workflow_dispatch with full_refresh option
   - **Jobs**:
     1. `ingest-data`: Runs dlt pipeline (yfinance → BigQuery)
-    2. `transform-data`: Runs dbt build (staging → intermediate → marts)
-    3. `notify`: Checks status and creates execution summary
+    2. `transform-data`: Runs dbt build + generates docs (staging → intermediate → marts)
+    3. `deploy-docs`: Publishes dbt docs + Elementary report to GitHub Pages
+    4. `notify`: Checks status and creates execution summary with documentation links
   - **Credentials**: Uses `GOOGLE_APPLICATION_CREDENTIALS` environment variable
-  - **Artifacts**: Uploads pipeline logs and dbt artifacts (30-day retention)
-- **Documentation**: See `orchestration/github-actions/setup.md` for detailed setup instructions
+  - **Artifacts**: Uploads pipeline logs and documentation (30-day retention)
+  - **GitHub Pages**: Auto-published at https://briza5.github.io/Signiture_project/
+- **Documentation**:
+  - Setup: `orchestration/github-actions/setup.md`
+  - GitHub Pages: `orchestration/github-actions/github-pages.md`
 
 ## Configuration
 

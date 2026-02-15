@@ -1,12 +1,12 @@
 Stock Portfolio Pipeline - Project Roadmap
-Status: ✅ Phase 1, 2, 3 & 3.5 Complete | 🎯 Ready for Phase 4 (Visualization)
+Status: ✅ Phase 1, 2, 3, 3.5 & 3.6 Complete | 🎯 Ready for Phase 4 (Visualization)
 Start Date: 2025-12-22
 Last Updated: 2026-02-15
-Tech Stack: yfinance → dlt → BigQuery → dbt Fusion → Elementary → GitHub Actions → Looker Studio
+Tech Stack: yfinance → dlt → BigQuery → dbt Fusion → Elementary → GitHub Actions → GitHub Pages → Looker Studio
 
 🎯 Current Status
 Active Phase: Phase 4 - Visualization (Ready to start)
-Completed Phases: Phase 1 (Ingestion), Phase 2 (Transformation), Phase 3 (Orchestration), Phase 3.5 (Data Observability)
+Completed Phases: Phase 1 (Ingestion), Phase 2 (Transformation), Phase 3 (Orchestration), Phase 3.5 (Data Observability), Phase 3.6 (GitHub Pages Documentation)
 Current Task: Build Looker Studio dashboard
 Blockers: None
 Latest Achievements:
@@ -36,6 +36,12 @@ Latest Achievements:
   - Schema change monitoring
   - Data quality HTML reports (edr report)
   - Custom BigQuery timestamp fix macro
+✅ GitHub Pages Documentation: COMPLETE
+  - Automated dbt docs generation (dbt docs generate)
+  - Automated Elementary report generation (edr report)
+  - GitHub Pages deployment via Actions API
+  - Live URLs: dbt docs + Elementary report
+  - Daily auto-updates with pipeline runs
 
 
 📚 dbt Fusion vs dbt Core - Key Learnings
@@ -1178,5 +1184,109 @@ Key Takeaways:
 7. Elementary provides production-ready data observability out of the box
 
 
-Last Updated: 2026-02-15 12:30 CET
+2026-02-15 (Session 9) - Phase 3.6 GitHub Pages Documentation Deployment
+
+🎯 Goal: Auto-publish dbt docs and Elementary reports to GitHub Pages
+
+Implementation Steps:
+
+1. **Workflow Enhancement - Add Documentation Generation**
+   - Added `dbt docs generate` step to transform-data job
+   - Generates index.html, manifest.json, catalog.json, graph.gpickle
+   - Added `edr report` step with Elementary CLI installation
+   - Configured Elementary profile with dev/prod targets (env var support)
+   - Fixed edr report command: `--profile-target prod` (not `--target`)
+
+2. **GitHub Pages Deployment Job**
+   - Created new `deploy-docs` job in workflow
+   - Downloads documentation artifacts from transform-data job
+   - Prepares GitHub Pages structure:
+     - `/` = dbt docs (index.html as homepage)
+     - `/elementary.html` = Elementary report
+   - Creates `.nojekyll` file (disables Jekyll processing for static HTML)
+   - Uses official GitHub Pages API (`actions/deploy-pages@v4`)
+   - No gh-pages branch needed (deploys from artifacts)
+
+3. **Artifact Optimization**
+   - Removed `compiled/` SQL from artifacts (not needed for viewing docs)
+   - Reduced artifact size from ~50MB to ~3MB
+   - Retained essential files: index.html, manifest.json, catalog.json, graph.gpickle
+   - Added error handling for Elementary report (fallback HTML if generation fails)
+
+4. **Permissions & Configuration**
+   - GitHub Pages permissions: `pages: write`, `id-token: write`
+   - Environment: `github-pages` with deployment URL output
+   - Settings → Pages → Source: "GitHub Actions" (not "Deploy from a branch")
+
+5. **Documentation**
+   - Created `orchestration/github-actions/github-pages.md`
+   - Complete setup guide with troubleshooting
+   - Updated CLAUDE.md with live documentation links
+   - Updated README.md with GitHub Pages features
+   - Updated project-roadmap.md with Phase 3.6
+
+Technical Issues Resolved:
+
+✅ **Elementary profile credentials**
+   - Problem: Hardcoded local Windows path in `elementary` profile
+   - Solution: Added dev/prod targets, prod uses `DBT_BIGQUERY_KEYFILE` env var
+   - Result: Elementary report generates successfully in GitHub Actions
+
+✅ **edr report command syntax**
+   - Problem: Used `--target prod` (dbt syntax)
+   - Solution: Elementary uses `--profile-target prod`
+   - Lesson: Different CLI tools, different argument conventions
+
+✅ **Artifact download path structure**
+   - Problem: Expected `docs/transformation/target/*`, got `docs/target/*`
+   - Root cause: `upload-artifact` finds least common ancestor (`transformation/`)
+   - Solution: Corrected paths in deploy-docs preparation step
+
+✅ **GitHub Pages deployment permissions**
+   - Problem: `peaceiris/actions-gh-pages` requires git push permissions
+   - Solution: Switched to official `actions/deploy-pages@v4` (uses deployment API)
+   - Benefits: No gh-pages branch, no git operations, better security
+
+✅ **Jekyll processing**
+   - Problem: GitHub Pages may ignore files/folders starting with `_`
+   - Solution: Added `.nojekyll` file to disable Jekyll
+   - Ensures dbt docs static files are served correctly
+
+Results:
+
+✅ dbt docs published: https://briza5.github.io/Signiture_project/
+✅ Elementary report published: https://briza5.github.io/Signiture_project/elementary.html
+✅ Auto-updates daily with pipeline runs
+✅ No manual deployment needed
+✅ ~3MB artifacts (optimized, no compiled SQL)
+✅ Error handling (Elementary report fallback)
+
+Next Actions:
+
+✅ Phase 3.6 Complete - Documentation auto-published
+➡️ Phase 4: Visualization - Build Looker Studio dashboard
+
+Portfolio Value:
+
+This phase demonstrates:
+- **GitHub Pages**: Modern static site deployment via Actions API
+- **Documentation automation**: dbt docs + Elementary reports in CI/CD
+- **Optimization**: Artifact size reduction (50MB → 3MB)
+- **Error handling**: Graceful fallbacks for optional components
+- **Problem-solving**: Multiple iterations to fix paths, permissions, CLI syntax
+- **Security**: Official GitHub APIs instead of third-party actions
+- **Best practices**: .nojekyll for static HTML, environment-based configs
+
+Key Takeaways:
+
+1. GitHub Pages deployment API is superior to git push to gh-pages branch
+2. Elementary report requires `--profile-target`, not `--target` like dbt
+3. Artifact download structure differs from upload (least common ancestor)
+4. dbt docs doesn't need compiled/ SQL (significant space savings)
+5. Error handling prevents deployment failures from optional components
+6. .nojekyll file is critical for serving static HTML with `_` prefixed folders
+7. Live documentation provides instant portfolio visibility
+
+
+Last Updated: 2026-02-15 21:30 CET
 Next Milestone: Phase 4 - Visualization (Looker Studio Dashboard)

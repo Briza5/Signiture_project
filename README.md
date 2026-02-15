@@ -56,9 +56,16 @@ GitHub Actions (Daily 8:00 UTC)
 - ✅ **Incremental Loading**: Only fetches new data since last run (efficient)
 - ✅ **Data Quality**: Comprehensive dbt tests + Elementary observability platform
 - ✅ **Data Observability**: Automated test tracking, anomaly detection, schema change monitoring
+- ✅ **Auto-published Documentation**: dbt docs + Elementary reports published to GitHub Pages
 - ✅ **Modular Design**: Clean separation between staging, intermediate, and marts layers
 - ✅ **Well Documented**: Extensive inline comments and documentation
 - ✅ **Educational**: Built as a portfolio/learning project with detailed explanations
+
+## 📚 Live Documentation
+
+**Auto-published on GitHub Pages** (updated daily):
+- 🔗 **[dbt Docs](https://briza5.github.io/Signiture_project/)** - Interactive data model documentation, DAG lineage
+- 🔗 **[Elementary Report](https://briza5.github.io/Signiture_project/elementary.html)** - Data quality monitoring & test results
 
 ## 📁 Project Structure
 
@@ -86,6 +93,7 @@ Signiture_project/
 │   ├── README.md              # Orchestration overview
 │   └── github-actions/
 │       ├── setup.md           # Step-by-step GitHub Actions setup
+│       ├── github-pages.md    # GitHub Pages documentation deployment guide
 │       └── secrets.env.example # GitHub Secrets template
 │
 ├── .github/workflows/          # GitHub Actions workflows
@@ -202,6 +210,7 @@ Currently tracking 13 symbols (defined in `ingestion/stock_pipeline.py`):
 - ✅ **Phase 2**: Transformation (dbt staging/intermediate/marts) - COMPLETE
 - ✅ **Phase 3**: Orchestration (GitHub Actions) - COMPLETE
 - ✅ **Phase 3.5**: Data Observability (Elementary) - COMPLETE
+- ✅ **Phase 3.6**: GitHub Pages Documentation - COMPLETE
 - 🔄 **Phase 4**: Visualization (Looker Studio) - IN PROGRESS
 - 🔄 **Phase 5**: Enhancements (alerts, data expansion, ML) - PLANNED
 
@@ -220,9 +229,15 @@ This project demonstrates:
 
 ## 📝 Documentation
 
+**Live Documentation (GitHub Pages):**
+- 🔗 **[dbt Docs](https://briza5.github.io/Signiture_project/)**: Interactive model documentation
+- 🔗 **[Elementary Report](https://briza5.github.io/Signiture_project/elementary.html)**: Data quality monitoring
+
+**Project Documentation:**
 - **[CLAUDE.md](CLAUDE.md)**: Instructions for Claude Code CLI
 - **[project-roadmap.md](docs/project-roadmap.md)**: Detailed roadmap with session notes
 - **[GitHub Actions Setup](orchestration/github-actions/setup.md)**: Complete setup guide
+- **[GitHub Pages Setup](orchestration/github-actions/github-pages.md)**: Documentation deployment guide
 - **[Orchestration Overview](orchestration/README.md)**: Scheduler comparison
 
 ## 🤝 Contributing
@@ -245,4 +260,4 @@ This project is for educational and portfolio purposes.
 ---
 
 **Last Updated**: 2026-02-15
-**Status**: Phase 3.5 Complete - Data observability with Elementary ✅
+**Status**: Phase 3.6 Complete - Auto-published documentation on GitHub Pages ✅
