@@ -34,13 +34,33 @@ stocks_transformation:
       dataproc_batch: null
 
 elementary:
+  target: dev  # Default target pro local development
   outputs:
-    default:
+    # ---------------------------------------------------------------------------
+    # DEV Target - Local development
+    # ---------------------------------------------------------------------------
+    dev:
       type: bigquery
       method: service-account
-      database: dwhhbbi  # Pro BigQuery v dbt funguje i 'database', але 'project' je jistota pro edr
-      schema: stocks_dev_elementary # Elementary tabulky jsou zde (s prefix od base schema)
+      database: dwhhbbi
+      schema: stocks_dev_elementary  # Elementary tabulky jsou zde
       threads: 4
+      # Absolutní cesta pro Windows local development
       keyfile: D:/OneDrive/Data engineer/Projekty/Signiture_project/ingestion/credentials/dwhhbbi-21142b907feb.json
+      location: US
+      priority: interactive
+
+    # ---------------------------------------------------------------------------
+    # PROD Target - GitHub Actions CI/CD
+    # ---------------------------------------------------------------------------
+    # Používá stejný DBT_BIGQUERY_KEYFILE env var jako stocks_transformation
+    prod:
+      type: bigquery
+      method: service-account
+      database: dwhhbbi
+      schema: stocks_dev_elementary
+      threads: 4
+      # Environment variable - nastavená v GitHub Actions workflow
+      keyfile: "{{ env_var('DBT_BIGQUERY_KEYFILE', '../ingestion/credentials/dwhhbbi-21142b907feb.json') }}"
       location: US
       priority: interactive

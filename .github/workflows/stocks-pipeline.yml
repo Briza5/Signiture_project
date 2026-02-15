@@ -235,26 +235,10 @@ jobs:
 
       - name: Generate Elementary report
         working-directory: ./transformation
-        run: edr report --profiles-dir .
+        run: edr report --profiles-dir . --target prod
 
       # -------------------------------------------------------------------------
-      # STEP 9: Upload dbt artifacts (manifest.json, run_results.json)
-      # -------------------------------------------------------------------------
-      # Důvod: Artifacts obsahují lineage, timings, test results pro analýzu
-      # manifest.json = complete DAG structure
-      # run_results.json = execution results, timings, errors
-      - name: Upload dbt artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dbt-artifacts
-          path: |
-            transformation/target/manifest.json
-            transformation/target/run_results.json
-          retention-days: 30
-
-      # -------------------------------------------------------------------------
-      # STEP 10: Upload documentation for GitHub Pages
+      # STEP 9: Upload documentation for GitHub Pages
       # -------------------------------------------------------------------------
       # Důvod: Připravit dbt docs + Elementary report pro publikaci
       # dbt docs: target/index.html + manifest.json + catalog.json + compiled SQL
