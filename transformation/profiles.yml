@@ -32,3 +32,15 @@ stocks_transformation:
       keyfile: "{{ env_var('DBT_BIGQUERY_KEYFILE', '../ingestion/credentials/dwhhbbi-21142b907feb.json') }}"
       location: US
       dataproc_batch: null
+
+elementary:
+  outputs:
+    default:
+      type: bigquery
+      method: service-account
+      database: dwhhbbi  # Pro BigQuery v dbt funguje i 'database', але 'project' je jistota pro edr
+      schema: stocks_dev_elementary # Elementary tabulky jsou zde (s prefix od base schema)
+      threads: 4
+      keyfile: D:/OneDrive/Data engineer/Projekty/Signiture_project/ingestion/credentials/dwhhbbi-21142b907feb.json
+      location: US
+      priority: interactive

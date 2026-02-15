@@ -48,6 +48,18 @@ dbt docs serve
 dbt deps
 ```
 
+### Elementary Data Observability (from `transformation/` directory)
+```bash
+# Generate Elementary data quality report
+edr report --profiles-dir .
+
+# Run Elementary models (creates monitoring tables)
+dbt run --select elementary
+
+# Run tests and populate Elementary test results
+dbt test
+```
+
 ## Architecture
 
 ### Data Flow
@@ -57,6 +69,8 @@ GitHub Actions (cron: 8:00 UTC weekdays)
 yfinance API → dlt pipeline → BigQuery (stocks_raw)
     ↓
 dbt staging → dbt intermediate → dbt marts
+    ↓                              ↓
+    ↓                          Elementary (data quality monitoring)
     ↓
 Looker Studio (future)
 ```
@@ -102,6 +116,21 @@ Looker Studio (future)
 - **Moving Averages**: Calculated using AVG() OVER with ROWS BETWEEN window frames
 - **Volatility**: Uses STDDEV_POP() over rolling windows for consistency
 
+### Data Quality & Monitoring (Elementary)
+- **Elementary Package** (`dbt_packages/elementary`): Data observability and quality monitoring
+  - **Test Results Tracking**: Automatically captures dbt test results in BigQuery
+  - **Anomaly Detection**: Monitors data quality metrics and detects anomalies
+  - **Schema Change Tracking**: Tracks schema evolution over time
+  - **Data Freshness**: Monitors pipeline execution timestamps
+  - **HTML Reports**: Generate interactive data quality reports with `edr report`
+  - **Dataset**: `stocks_dev_elementary` (all Elementary tables)
+
+- **BigQuery Timestamp Fix** (`macros/bigquery_timestamp_fix.sql`):
+  - **Problem**: Elementary uses default `timestamp` type which BigQuery interpreted as nanosecond precision
+  - **Error**: `Invalid timestamp: '2026-02-14T19:43:26.693945100Z'` (9 digits vs 6 supported)
+  - **Solution**: Custom macro `bigquery__edr_type_timestamp()` overrides Elementary's default to use `TIMESTAMP` (microsecond precision)
+  - **How it works**: dbt's adapter dispatch mechanism automatically uses BigQuery-specific macro implementation
+
 ### Orchestration Layer
 - **GitHub Actions** (`.github/workflows/stocks-pipeline.yml`): Automated daily pipeline execution
   - **Schedule**: Cron every weekday 8:00 AM UTC (after US market close)
@@ -116,12 +145,19 @@ Looker Studio (future)
 
 ## Configuration
 
-### dbt Profile
-Profile `stocks_transformation` configured in `transformation/profiles.yml`:
-- Target: BigQuery (dataset: `stocks_dev`)
-- Authentication: Service account key file
-- Staging models materialize as views
-- Marts models materialize as tables
+### dbt Profiles & Schema Configuration
+**Profile `stocks_transformation`** (`transformation/profiles.yml`):
+- **Base schema**: `stocks_dev` (dev target)
+- **Authentication**: Service account key file
+- **Custom schemas** (defined in `dbt_project.yml`):
+  - `staging` → `stocks_dev_staging`
+  - `intermediate` → `stocks_dev_intermediate`
+  - `marts` → `stocks_dev_marts`
+
+**Profile `elementary`** (for `edr` CLI tool):
+- **Schema**: `stocks_dev_elementary` (must match where dbt creates Elementary tables)
+- **Authentication**: Same service account as stocks_transformation
+- **Important**: Elementary models run with `stocks_transformation` profile during `dbt run`, but `edr report` uses `elementary` profile to read results
 
 ### dlt Configuration
 - Dataset: `stocks_raw` in BigQuery
@@ -146,8 +182,9 @@ Main dependencies (see `requirements.txt`):
 - sqlalchemy>=2.0.0
 
 dbt packages (installed via `dbt deps`):
-- dbt_utils
-- codegen
+- dbt_utils (>=1.3.0)
+- codegen (0.14.0)
+- elementary-data/elementary (0.22.0) - Data observability and monitoring
 
 ## Development Notes
 
@@ -155,9 +192,25 @@ dbt packages (installed via `dbt deps`):
 Update `TEST_SYMBOLS` list in `ingestion/stock_pipeline.py` and run incremental load
 
 ### Data Quality Checks
-- dbt tests defined in `intermediate.yml` ensure data quality
-- Pipeline run status tracked per symbol (success/failed/no_data)
-- Error messages captured in `pipeline_runs` table
+- **dbt Tests**: Generic tests defined in `intermediate.yml` and `marts.yml` ensure data quality
+- **Elementary Monitoring**: Automatic test result tracking, anomaly detection, schema change monitoring
+- **Pipeline Status**: Run status tracked per symbol (success/failed/no_data) in `pipeline_runs` table
+- **Error Tracking**: Error messages captured and surfaced in Elementary reports
+
+### Elementary Troubleshooting
+**Common Issues:**
+
+1. **"Timestamp precision type parameter is not supported"**
+   - **Cause**: BigQuery doesn't support `timestamp(6)` syntax (unlike Athena/Trino)
+   - **Fix**: Custom macro `bigquery__edr_type_timestamp()` in `macros/bigquery_timestamp_fix.sql`
+
+2. **"Dataset dwhhbbi:elementary was not found"**
+   - **Cause**: Mismatch between where dbt creates tables vs where `edr` looks for them
+   - **Fix**: Ensure `elementary` profile schema matches actual dataset name (e.g., `stocks_dev_elementary`)
+
+3. **Elementary models going to wrong dataset**
+   - **Cause**: Missing namespace in `dbt_project.yml`
+   - **Fix**: Add `elementary:` namespace at same level as `stocks_transformation:` in models config
 
 ### Working with Intermediate Models
 All intermediate models follow consistent patterns:

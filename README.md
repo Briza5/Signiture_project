@@ -10,6 +10,7 @@ Automated ETL pipeline that ingests daily stock market data, transforms it into 
 - **Ingestion**: dlt (data load tool) + yfinance API
 - **Storage**: Google BigQuery
 - **Transformation**: dbt (data build tool)
+- **Data Quality**: Elementary Data (observability & monitoring)
 - **Orchestration**: GitHub Actions
 - **Visualization**: Looker Studio (planned)
 
@@ -40,12 +41,12 @@ GitHub Actions (Daily 8:00 UTC)
 │  ├─ Intermediate    │
 │  └─ Marts           │
 └──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│  Analytics Models   │
-│  ├─ dim_companies   │
-│  ├─ dim_sectors     │
-│  └─ fct_daily_...   │
+           ↓           ↓
+┌─────────────────────┐  ┌──────────────────┐
+│  Analytics Models   │  │  Elementary      │
+│  ├─ dim_companies   │  │  Data Quality    │
+│  ├─ dim_sectors     │  │  Monitoring      │
+│  └─ fct_daily_...   │  └──────────────────┘
 └─────────────────────┘
 ```
 
@@ -53,7 +54,8 @@ GitHub Actions (Daily 8:00 UTC)
 
 - ✅ **Fully Automated**: GitHub Actions runs pipeline daily without manual intervention
 - ✅ **Incremental Loading**: Only fetches new data since last run (efficient)
-- ✅ **Data Quality**: Comprehensive dbt tests ensure data integrity
+- ✅ **Data Quality**: Comprehensive dbt tests + Elementary observability platform
+- ✅ **Data Observability**: Automated test tracking, anomaly detection, schema change monitoring
 - ✅ **Modular Design**: Clean separation between staging, intermediate, and marts layers
 - ✅ **Well Documented**: Extensive inline comments and documentation
 - ✅ **Educational**: Built as a portfolio/learning project with detailed explanations
@@ -72,7 +74,11 @@ Signiture_project/
 │   │   ├── staging/           # 3 models: stg_daily_prices, stg_company_metadata, stg_pipeline_runs
 │   │   ├── intermediate/      # 3 models: price calculations, moving averages, volatility
 │   │   └── marts/             # 3 models: dim_companies, dim_sectors, fct_daily_stock_performance
-│   ├── macros/                # Reusable dbt macros (calculate_return, cents_to_dollars)
+│   ├── macros/
+│   │   ├── calculate_return.sql          # Custom return calculation macro
+│   │   ├── cents_to_dollars.sql          # Currency conversion macro
+│   │   └── bigquery_timestamp_fix.sql    # Elementary BigQuery compatibility fix
+│   ├── dbt_packages/          # Installed packages: dbt_utils, codegen, elementary
 │   ├── profiles.yml           # dbt connection configuration
 │   └── dbt_project.yml        # dbt project settings
 │
@@ -134,8 +140,14 @@ Signiture_project/
 5. **Run dbt transformation**
    ```bash
    cd transformation
-   dbt deps  # Install dbt packages
+   dbt deps  # Install dbt packages (dbt_utils, codegen, elementary)
    dbt build # Build all models and run tests
+   ```
+
+6. **Generate Elementary data quality report**
+   ```bash
+   cd transformation
+   edr report --profiles-dir .  # Generates HTML report
    ```
 
 ### GitHub Actions Setup
@@ -179,27 +191,32 @@ Currently tracking 13 symbols (defined in `ingestion/stock_pipeline.py`):
 
 ### BigQuery Datasets
 - `stocks_raw`: Raw data from dlt pipeline
-- `stocks_dev`: Development models (staging, intermediate, marts)
-- `stocks_dev_marts`: Production-ready marts layer
+- `stocks_dev_staging`: Staging layer views
+- `stocks_dev_intermediate`: Intermediate layer views
+- `stocks_dev_marts`: Marts layer tables (production-ready)
+- `stocks_dev_elementary`: Elementary data quality monitoring tables
 
 ## 📈 Project Status
 
 - ✅ **Phase 1**: Data Ingestion (dlt → BigQuery) - COMPLETE
 - ✅ **Phase 2**: Transformation (dbt staging/intermediate/marts) - COMPLETE
 - ✅ **Phase 3**: Orchestration (GitHub Actions) - COMPLETE
-- 🔄 **Phase 4**: Visualization (Looker Studio) - PLANNED
-- 🔄 **Phase 5**: Enhancements (monitoring, alerts, data expansion) - PLANNED
+- ✅ **Phase 3.5**: Data Observability (Elementary) - COMPLETE
+- 🔄 **Phase 4**: Visualization (Looker Studio) - IN PROGRESS
+- 🔄 **Phase 5**: Enhancements (alerts, data expansion, ML) - PLANNED
 
 See [`docs/project-roadmap.md`](docs/project-roadmap.md) for detailed progress tracking.
 
 ## 🎓 Learning Highlights
 
 This project demonstrates:
-- **Modern Data Stack**: dlt + dbt + BigQuery + GitHub Actions
+- **Modern Data Stack**: dlt + dbt + BigQuery + Elementary + GitHub Actions
 - **DataOps**: CI/CD for data pipelines, automated testing, artifact management
+- **Data Observability**: Elementary for test tracking, anomaly detection, schema monitoring
 - **Analytics Engineering**: Dimensional modeling, surrogate keys, FK relationships
+- **Advanced dbt**: Custom macros, adapter dispatch overrides, package namespace configuration
 - **Best Practices**: DRY principles, modular design, comprehensive documentation
-- **Problem Solving**: Debugging TOML parsing, YAML syntax, credential management
+- **Problem Solving**: BigQuery timestamp precision, dbt macro overrides, schema naming patterns
 
 ## 📝 Documentation
 
@@ -220,11 +237,12 @@ This project is for educational and portfolio purposes.
 
 - [dlt Documentation](https://dlthub.com/docs)
 - [dbt Documentation](https://docs.getdbt.com)
+- [Elementary Documentation](https://docs.elementary-data.com)
 - [yfinance Documentation](https://pypi.org/project/yfinance/)
 - [BigQuery Documentation](https://cloud.google.com/bigquery/docs)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 
 ---
 
-**Last Updated**: 2026-02-06
-**Status**: Phase 3 Complete - Fully automated pipeline ✅
+**Last Updated**: 2026-02-15
+**Status**: Phase 3.5 Complete - Data observability with Elementary ✅

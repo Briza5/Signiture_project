@@ -2,3 +2,5 @@ dbt_packages/
 dbt_internal_packages/
 logs/
 target/
+seeds/Portfolio1.csv
+seeds/Portfolio2.csv

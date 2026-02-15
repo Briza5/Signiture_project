@@ -2,3 +2,12 @@
 dwhhbbi-21142b907feb.json
 secrets.toml
 logs
+seeds/Portfolio1.csv
+seeds/Portfolio2.csv
+
+# Claude Code CLI temporary files
+claude-*-cwd
+
+# Elementary Data outputs
+transformation/edr_target/
+transformation/target/

@@ -1,12 +1,12 @@
 Stock Portfolio Pipeline - Project Roadmap
-Status: ✅ Phase 1, 2 & 3 Complete | 🎯 Ready for Phase 4 (Visualization)
+Status: ✅ Phase 1, 2, 3 & 3.5 Complete | 🎯 Ready for Phase 4 (Visualization)
 Start Date: 2025-12-22
-Last Updated: 2026-02-06
-Tech Stack: yfinance → dlt → BigQuery → dbt Fusion → GitHub Actions → Looker Studio
+Last Updated: 2026-02-15
+Tech Stack: yfinance → dlt → BigQuery → dbt Fusion → Elementary → GitHub Actions → Looker Studio
 
 🎯 Current Status
 Active Phase: Phase 4 - Visualization (Ready to start)
-Completed Phases: Phase 1 (Ingestion), Phase 2 (Transformation), Phase 3 (Orchestration)
+Completed Phases: Phase 1 (Ingestion), Phase 2 (Transformation), Phase 3 (Orchestration), Phase 3.5 (Data Observability)
 Current Task: Build Looker Studio dashboard
 Blockers: None
 Latest Achievements:
@@ -21,7 +21,7 @@ Latest Achievements:
   - int_price_calculations.sql (returns, ranges, typical price)
   - int_moving_averages.sql (MA 20/50/200, golden/death cross, trend signals)
   - int_volatility_metrics.sql (rolling volatility 20/50d, annualized, regime classification)
-✅ Custom macros: calculate_return.sql
+✅ Custom macros: calculate_return.sql, bigquery_timestamp_fix.sql
 ✅ Marts layer: 3 models COMPLETE
   - dim_companies.sql (company dimension with surrogate keys)
   - dim_sectors.sql (sector dimension with industry aggregation)
@@ -31,6 +31,11 @@ Latest Achievements:
   - Full workflow: Ingestion → Transformation → Notification
   - Artifacts: Logs & dbt artifacts uploaded
   - Manual trigger option for testing
+✅ Data Observability: Elementary COMPLETE
+  - Automated test result tracking
+  - Schema change monitoring
+  - Data quality HTML reports (edr report)
+  - Custom BigQuery timestamp fix macro
 
 
 📚 dbt Fusion vs dbt Core - Key Learnings
@@ -1068,5 +1073,110 @@ Key Takeaways:
 8. Test YAML syntax locally before push (python yaml.safe_load())
 
 
-Last Updated: 2026-02-06 22:30 CET
+2026-02-15 (Session 8) - Phase 3.5 Data Observability (Elementary) Implementation
+Duration: ~2 hours
+Focus: Elementary setup, BigQuery timestamp compatibility fix, schema configuration
+Completed:
+
+✅ Elementary Package Installation
+  - Added elementary-data/elementary (0.22.0) to packages.yml
+  - Installed via dbt deps
+  - Created elementary profile in profiles.yml
+
+✅ BigQuery Timestamp Fix (CRITICAL ISSUE)
+  - Created custom macro: macros/bigquery_timestamp_fix.sql
+  - Override bigquery__edr_type_timestamp() macro
+  - Fixed "Invalid timestamp: '2026-02-14T19:43:26.693945100Z'" error
+  - Solution: Use TIMESTAMP (without precision parameter) for BigQuery compatibility
+
+✅ dbt Schema Configuration
+  - Added Elementary package namespace in dbt_project.yml (separate from stocks_transformation)
+  - Configured custom schemas for all layers (staging, intermediate, marts, elementary)
+  - Fixed Elementary dataset mismatch between dbt run and edr report
+
+✅ Elementary Report Generation
+  - Successfully generated HTML data quality report with edr report --profiles-dir .
+  - Test results tracking functional
+  - Schema monitoring active
+
+Technical Challenges Resolved:
+
+1. BigQuery Timestamp Precision Error
+   - Issue: Elementary default uses timestamp type without precision limit, BigQuery interpreted as nanosecond (9 digits)
+   - Error: "Timestamp precision type parameter is not supported at [38:14]"
+   - Root cause: BigQuery doesn't support timestamp(6) syntax (unlike Athena/Trino)
+   - Attempted fix: timestamp(6) → FAILED (BigQuery rejects precision parameter)
+   - Final solution: TIMESTAMP without parameter (defaults to microsecond precision)
+   - Implementation: Custom macro using dbt adapter dispatch pattern
+
+2. Elementary Dataset Mismatch
+   - Issue: Elementary models created in stocks_dev instead of stocks_dev_elementary
+   - Root cause: Missing Elementary package namespace in dbt_project.yml
+   - Fix: Added elementary: namespace separate from stocks_transformation:
+
+   models:
+     stocks_transformation:
+       staging: ...
+       marts: ...
+     elementary:  # Package namespace
+       +schema: elementary
+
+3. edr Report Schema Error
+   - Issue: "Dataset dwhhbbi:elementary was not found"
+   - Root cause: elementary profile schema didn't match actual dataset name
+   - dbt run creates: stocks_dev_elementary (base_schema + custom_schema)
+   - edr report looked for: elementary (just custom_schema)
+   - Fix: Updated elementary profile schema to stocks_dev_elementary
+
+dbt Adapter Dispatch Pattern (Key Learning):
+
+How bigquery__edr_type_timestamp() override works:
+1. Elementary calls: adapter.dispatch('edr_type_timestamp', 'elementary')
+2. dbt searches for macros in order:
+   a) bigquery__edr_type_timestamp in PROJECT macros (FOUND → USED)
+   b) bigquery__edr_type_timestamp in elementary package
+   c) default__edr_type_timestamp in project macros
+   d) default__edr_type_timestamp in elementary package
+3. Our custom macro has highest priority → automatically overrides package default
+4. No registration needed in dbt_project.yml (automatic via naming convention)
+
+BigQuery Datasets Created:
+- stocks_dev_staging (views)
+- stocks_dev_intermediate (views)
+- stocks_dev_marts (tables)
+- stocks_dev_elementary (Elementary monitoring tables)
+
+Key Implementation Files:
+- transformation/macros/bigquery_timestamp_fix.sql - Custom timestamp override
+- transformation/dbt_project.yml - Elementary package namespace config
+- transformation/profiles.yml - Elementary profile with correct schema
+
+Next Actions:
+
+✅ Phase 3.5 Complete - Data observability operational
+➡️ Phase 4: Visualization - Build Looker Studio dashboard
+➡️ Optional: Integrate Elementary into GitHub Actions workflow
+
+Portfolio Value:
+
+This phase demonstrates:
+- Advanced dbt: Custom macro overrides using adapter dispatch pattern
+- Problem-solving: BigQuery adapter compatibility issues
+- Deep understanding: dbt package namespacing and schema configuration
+- Data observability: Modern data stack best practices (Elementary)
+- Debugging skills: Multi-layer troubleshooting (macro → schema → profile → dataset)
+- Documentation: Comprehensive troubleshooting guide in CLAUDE.md
+
+Key Takeaways:
+
+1. BigQuery TIMESTAMP syntax differs from Athena/Trino (no precision parameter)
+2. dbt adapter dispatch enables clean overrides without modifying packages
+3. Package models need separate namespace in dbt_project.yml (not under project namespace)
+4. Schema naming: base_schema + custom_schema (unless in separate profile)
+5. Elementary profile schema must match where dbt actually creates tables
+6. Macro naming convention {adapter}__macro_name() enables automatic dispatch
+7. Elementary provides production-ready data observability out of the box
+
+
+Last Updated: 2026-02-15 12:30 CET
 Next Milestone: Phase 4 - Visualization (Looker Studio Dashboard)
