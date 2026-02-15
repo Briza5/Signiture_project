@@ -235,7 +235,7 @@ jobs:
 
       - name: Generate Elementary report
         working-directory: ./transformation
-        run: edr report --profiles-dir . --target prod
+        run: edr report --profiles-dir . --profile-target prod
 
       # -------------------------------------------------------------------------
       # STEP 9: Upload documentation for GitHub Pages
