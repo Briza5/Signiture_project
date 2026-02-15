@@ -241,8 +241,9 @@ jobs:
       # STEP 9: Upload documentation for GitHub Pages
       # -------------------------------------------------------------------------
       # Důvod: Připravit dbt docs + Elementary report pro publikaci
-      # dbt docs: target/index.html + manifest.json + catalog.json + compiled SQL
+      # dbt docs: target/index.html + manifest.json + catalog.json + graph.gpickle
       # Elementary: edr_target/elementary_report.html
+      # Note: compiled/ SQL není potřeba pro viewing docs (jen pro debugging)
       - name: Upload documentation artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -253,7 +254,6 @@ jobs:
             transformation/target/manifest.json
             transformation/target/catalog.json
             transformation/target/graph.gpickle
-            transformation/target/compiled/
             transformation/edr_target/elementary_report.html
           retention-days: 30
 
@@ -304,17 +304,27 @@ jobs:
           ls -la docs/
 
           mkdir -p gh-pages
+          # Disable Jekyll processing (dbt docs may have _folders that Jekyll would ignore)
+          touch gh-pages/.nojekyll
           # Copy dbt docs to root (homepage)
           # Note: Artifact structure is docs/target/*, NOT docs/transformation/target/*
           # because upload-artifact finds least common ancestor (transformation/)
           cp -r docs/target/* gh-pages/
-          # Copy Elementary report to root as elementary.html
-          cp docs/edr_target/elementary_report.html gh-pages/elementary.html
+
+          # Copy Elementary report to root as elementary.html (with fallback)
+          if [ -f docs/edr_target/elementary_report.html ]; then
+            cp docs/edr_target/elementary_report.html gh-pages/elementary.html
+            ELEMENTARY_STATUS="✅ Available"
+          else
+            echo "<html><body><h1>Elementary Report Not Available</h1><p>Report generation failed or was skipped.</p></body></html>" > gh-pages/elementary.html
+            ELEMENTARY_STATUS="⚠️ Not Generated"
+          fi
+
           # Create simple README for GitHub Pages
           echo "# Stock Pipeline Documentation" > gh-pages/README.md
           echo "" >> gh-pages/README.md
           echo "- [dbt Documentation](index.html) - Data models, lineage, and tests" >> gh-pages/README.md
-          echo "- [Elementary Report](elementary.html) - Data quality monitoring and anomaly detection" >> gh-pages/README.md
+          echo "- [Elementary Report](elementary.html) - Data quality monitoring ($ELEMENTARY_STATUS)" >> gh-pages/README.md
 
       # -------------------------------------------------------------------------
       # STEP 3: Setup GitHub Pages
@@ -337,7 +347,7 @@ jobs:
       # -------------------------------------------------------------------------
       # STEP 5: Deploy to GitHub Pages
       # -------------------------------------------------------------------------
-      # Düvod: Publikace dokumentace na https://<username>.github.io/<repo>/
+      # Důvod: Publikace dokumentace na https://<username>.github.io/<repo>/
       # actions/deploy-pages - oficiální GitHub Pages deployment (ne git push)
       # Výstup: page_url = URL publikované dokumentace
       - name: Deploy to GitHub Pages
@@ -376,7 +386,7 @@ jobs:
       # -------------------------------------------------------------------------
       # STEP 2: Create pipeline execution summary
       # -------------------------------------------------------------------------
-      # Düvod: Viditelný summary v GitHub Actions UI (přehledná reportace)
+      # Důvod: Viditelný summary v GitHub Actions UI (přehledná reportace)
       # $GITHUB_STEP_SUMMARY = speciální file, který GitHub renderuje jako Markdown
       # Výsledek: Přehledná tabulka se statusy všech jobs + odkazy na GitHub Pages
       - name: Pipeline summary
