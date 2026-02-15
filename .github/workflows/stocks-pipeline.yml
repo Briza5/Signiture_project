@@ -295,11 +295,17 @@ jobs:
       #   /elementary.html = Elementary data quality report
       - name: Prepare GitHub Pages content
         run: |
+          # Debug: Show artifact structure after download
+          echo "=== Downloaded artifact structure ==="
+          ls -la docs/
+
           mkdir -p gh-pages
           # Copy dbt docs to root (homepage)
-          cp -r docs/transformation/target/* gh-pages/
+          # Note: Artifact structure is docs/target/*, NOT docs/transformation/target/*
+          # because upload-artifact finds least common ancestor (transformation/)
+          cp -r docs/target/* gh-pages/
           # Copy Elementary report to root as elementary.html
-          cp docs/transformation/edr_target/elementary_report.html gh-pages/elementary.html
+          cp docs/edr_target/elementary_report.html gh-pages/elementary.html
           # Create simple README for GitHub Pages
           echo "# Stock Pipeline Documentation" > gh-pages/README.md
           echo "" >> gh-pages/README.md
